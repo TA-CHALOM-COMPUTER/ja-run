@@ -1,5 +1,5 @@
 /* ============================================================
-   FIREBASE CONFIG
+   FIREBASE CONFIG — คงไว้เหมือนเดิม
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyDEtUkxWSO6P7xrAzFnDoIbjpC4eI0djBE",
@@ -10,16 +10,25 @@ const firebaseConfig = {
   appId: "1:835459403423:web:9db37f5eeb4bbced9cdcaa",
   measurementId: "G-6DNNJ1E0DH"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
 
 /* ============================================================
-   AUTH STATE
+   STATE
    ============================================================ */
 let currentUser = null;
+let allRuns     = [];
+let bodyData    = { weight: 65, age: 30, gender: 'male' };
+let goalData    = { type: 'distance', value: 5 };
+let currentGoalType = 'distance';
+let currentFeeling  = 3;
+let deleteTarget    = null;
+let historyFilter   = 'all';
 
+/* ============================================================
+   AUTH
+   ============================================================ */
 auth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
@@ -34,545 +43,701 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-/* ===== GOOGLE SIGN IN ===== */
 document.getElementById('googleSignInBtn').addEventListener('click', async () => {
   const btn = document.getElementById('googleSignInBtn');
-  btn.innerHTML = '<span class="spinner"></span> กำลังเข้าสู่ระบบ...';
+  btn.innerHTML = '<span class="spin"></span> กำลังเข้าสู่ระบบ...';
   btn.disabled = true;
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);
   } catch (e) {
     alert('เข้าสู่ระบบไม่สำเร็จ: ' + e.message);
-    btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20" alt="Google"> เข้าสู่ระบบด้วย Google';
+    btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20" alt="G"> เข้าสู่ระบบด้วย Google';
     btn.disabled = false;
   }
 });
 
 function setUserUI(user) {
-  document.getElementById('userAvatar').src = user.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.displayName || 'U') + '&background=ff5a1f&color=fff';
-  document.getElementById('menuAvatar').src  = document.getElementById('userAvatar').src;
-  document.getElementById('menuName').textContent  = user.displayName || 'ผู้ใช้';
-  document.getElementById('menuEmail').textContent = user.email || '';
+  const av = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName||'U')}&background=ff4d00&color=fff`;
+  document.getElementById('userAvatar').src = av;
+  document.getElementById('mAvatar').src    = av;
+  document.getElementById('mName').textContent  = user.displayName || 'ผู้ใช้';
+  document.getElementById('mEmail').textContent = user.email || '';
 }
 
-function toggleProfileMenu() {
-  document.getElementById('profileMenu').classList.toggle('open');
-  document.getElementById('profileOverlay').classList.toggle('open');
+function toggleMenu() {
+  document.getElementById('pmenu').classList.toggle('open');
+  document.getElementById('pmenuOverlay').classList.toggle('open');
 }
 
 async function signOut() {
   await auth.signOut();
-  toggleProfileMenu();
+  toggleMenu();
 }
 
 /* ============================================================
    FIRESTORE HELPERS
    ============================================================ */
-function userDoc(path) {
-  return db.collection('users').doc(currentUser.uid).collection(path);
-}
+function uid() { return currentUser.uid; }
+function runsCol() { return db.collection('users').doc(uid()).collection('runs'); }
+function settCol() { return db.collection('users').doc(uid()).collection('settings'); }
 
-async function fsSet(col, docId, data) {
-  await db.collection('users').doc(currentUser.uid).collection(col).doc(docId).set(data, { merge: true });
-}
-
-async function fsGet(col, docId) {
-  const snap = await db.collection('users').doc(currentUser.uid).collection(col).doc(docId).get();
-  return snap.exists ? snap.data() : null;
+async function fsSet(doc, data) { await settCol().doc(doc).set(data, { merge: true }); }
+async function fsGet(doc) {
+  const s = await settCol().doc(doc).get();
+  return s.exists ? s.data() : null;
 }
 
 /* ============================================================
-   MAP
-   ============================================================ */
-const map = L.map('map').setView([13.5475, 100.2744], 14);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-let polyline   = L.polyline([], { color: '#ff5a1f', weight: 5 }).addTo(map);
-let startMarker = null;
-
-/* ============================================================
-   RUN STATE
-   ============================================================ */
-let watchId = null, route = [], distance = 0, startTime = null, timerInterval = null;
-let isRunning = false;
-let currentGoalType = 'distance';
-let planData  = { days: 3, dist: 5.0, pace: 6 };
-let goalData  = { type: 'distance', value: 5 };
-let bodyData  = { weight: 65, age: 30, gender: 'male' };
-
-const distanceEl = document.getElementById('distance');
-const durationEl = document.getElementById('duration');
-const paceEl     = document.getElementById('pace');
-const caloriesEl = document.getElementById('calories');
-const speedEl    = document.getElementById('speed');
-const stepsEl    = document.getElementById('steps');
-
-/* ============================================================
-   LOAD ALL USER DATA
+   LOAD ALL
    ============================================================ */
 async function loadAll() {
-  // Body
-  const b = await fsGet('settings', 'body');
+  // Load body
+  const b = await fsGet('body');
   if (b) {
     bodyData = b;
-    document.getElementById('bodyWeight').textContent = b.weight;
-    document.getElementById('bodyAge').textContent    = b.age;
-    document.getElementById('bodyGender').value       = b.gender;
+    document.getElementById('bWeight').textContent = b.weight;
+    document.getElementById('bAge').textContent    = b.age;
+    document.getElementById('bGender').value       = b.gender;
   }
 
-  // Plan
-  const p = await fsGet('settings', 'plan');
-  if (p) {
-    planData = p;
-    document.getElementById('planDays').textContent = p.days;
-    document.getElementById('planDist').textContent = p.dist.toFixed(1);
-    document.getElementById('planPace').value       = p.pace;
-  }
-
-  // Goal
-  const g = await fsGet('settings', 'goal');
+  // Load goal
+  const g = await fsGet('goal');
   if (g) {
     goalData = g;
-    selectGoalType(g.type, document.querySelector(`.goal-type-btn[data-type="${g.type}"]`), true);
-    if (g.type === 'distance') document.getElementById('goalDistVal').textContent = g.value;
-    if (g.type === 'time')     document.getElementById('goalTimeVal').textContent = g.value;
-    if (g.type === 'calories') document.getElementById('goalCalVal').textContent  = g.value;
-    updateHeaderGoal();
+    setGoalType(g.type, document.querySelector(`.gt-btn[data-gt="${g.type}"]`), true);
+    if (g.type === 'distance') document.getElementById('gv-dist').textContent = g.value;
+    if (g.type === 'time')     document.getElementById('gv-time').textContent = g.value;
+    if (g.type === 'calories') document.getElementById('gv-cals').textContent = g.value;
   }
 
+  // Load runs
+  const snap = await runsCol().orderBy('timestamp', 'desc').get();
+  allRuns = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  renderAll();
   buildPrograms();
-  buildWeeklySchedule();
-  await loadHistory();
-  await loadStats();
-  await buildMilestones();
+  buildTips();
+}
+
+function renderAll() {
+  updateHeaderGoal();
+  renderHome();
+  renderHistory();
+  renderStats();
+  updateMenuStats();
 }
 
 /* ============================================================
    TABS
    ============================================================ */
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'stats') loadStats();
   });
 });
 
 /* ============================================================
-   RUN CONTROLS
+   HOME
    ============================================================ */
-document.getElementById('startBtn').addEventListener('click', startRun);
-document.getElementById('stopBtn').addEventListener('click', stopRun);
-document.getElementById('saveBtn').addEventListener('click', saveRun);
-
-function startRun() {
-  if (isRunning) return;
-  isRunning = true;
-  route = []; distance = 0;
-  distanceEl.textContent = '0.00';
-  caloriesEl.textContent = '0';
-  speedEl.textContent    = '0.0';
-  stepsEl.textContent    = '0';
-  paceEl.textContent     = '--:--';
-  polyline.setLatLngs([]);
-  if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
-  startTime = Date.now();
-  timerInterval = setInterval(updateTimer, 1000);
-
-  if (goalData && goalData.value) document.getElementById('goalProgressWrap').style.display = 'block';
-  document.getElementById('gpsStatus').textContent = '📡 กำลังหา GPS...';
-
-  watchId = navigator.geolocation.watchPosition(onGPS,
-    () => { document.getElementById('gpsStatus').textContent = '⚠ GPS ไม่พร้อม'; },
-    { enableHighAccuracy: true, timeout: 15000 }
-  );
+function renderHome() {
+  buildWeekStrip();
+  buildQuickStats();
+  renderGoalProgress();
+  renderLastRun();
 }
 
-function onGPS(pos) {
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-  const acc = pos.coords.accuracy;
-  document.getElementById('gpsStatus').textContent = `📡 GPS ±${Math.round(acc)}m`;
+function buildWeekStrip() {
+  const days = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const now = new Date();
+  const todayIdx = now.getDay();
+  const strip = document.getElementById('weekStrip');
 
-  const pt = [lat, lng];
-  route.push(pt);
-  if (route.length === 1) {
-    startMarker = L.circleMarker(pt, { radius: 8, color: '#ff5a1f', fillColor: '#fff', fillOpacity: 1, weight: 3 }).addTo(map);
+  // Build 7-day window (Mon-Sun of current week)
+  const rows = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - todayIdx + i);
+    const dateStr = d.toISOString().slice(0,10);
+    const runOnDay = allRuns.filter(r => r.date === dateStr);
+    const dist = runOnDay.reduce((a,r) => a + (r.distance||0), 0);
+    rows.push({ dayName: days[i], dateStr, dist, isToday: i === todayIdx });
   }
-  map.setView(pt, 16);
-  polyline.setLatLngs(route);
 
-  if (route.length > 1) {
-    distance += calcDist(route[route.length - 2], route[route.length - 1]);
-    distanceEl.textContent = distance.toFixed(2);
-
-    const spdKmh = (pos.coords.speed || 0) * 3.6;
-    speedEl.textContent    = spdKmh.toFixed(1);
-    caloriesEl.textContent = Math.round(calcCalories());
-    stepsEl.textContent    = Math.round(distance * 1300).toLocaleString();
-    updatePace();
-    updateGoalProgress();
-  }
+  strip.innerHTML = rows.map(r => `
+    <div class="wday${r.dist > 0 ? ' ran' : ''}${r.isToday ? ' today' : ''}">
+      <span class="wday-name">${r.dayName}</span>
+      <div class="wday-dot"></div>
+      <span class="wday-dist">${r.dist > 0 ? r.dist.toFixed(1) : ''}</span>
+    </div>
+  `).join('');
 }
 
-function stopRun() {
-  if (!isRunning) return;
-  isRunning = false;
-  navigator.geolocation.clearWatch(watchId);
-  clearInterval(timerInterval);
-  document.getElementById('gpsStatus').textContent = '⏹ หยุดแล้ว';
+function buildQuickStats() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - now.getDay() + 1);
+  monday.setHours(0,0,0,0);
+
+  const weekRuns = allRuns.filter(r => {
+    const d = new Date(r.date);
+    return d >= monday;
+  });
+
+  const dist = weekRuns.reduce((a,r) => a + (r.distance||0), 0);
+  const cals = weekRuns.reduce((a,r) => a + (r.calories||0), 0);
+  const paces = weekRuns.filter(r => r.pace && r.pace !== '--:--').map(r => paceToMin(r.pace));
+  const avgPace = paces.length ? paces.reduce((a,b)=>a+b,0)/paces.length : 0;
+
+  document.getElementById('qs-dist').textContent  = dist.toFixed(1);
+  document.getElementById('qs-runs').textContent  = weekRuns.length;
+  document.getElementById('qs-cals').textContent  = Math.round(cals);
+  document.getElementById('qs-pace').textContent  = avgPace ? minToDisplay(avgPace) : '--:--';
 }
 
-function updateTimer() {
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  durationEl.textContent = `${String(Math.floor(elapsed / 60)).padStart(2,'0')}:${String(elapsed % 60).padStart(2,'0')}`;
-  updateGoalProgress();
-}
+function renderGoalProgress() {
+  if (!goalData || !goalData.value) return;
+  const box = document.getElementById('goalBox');
+  box.style.display = 'block';
 
-function updatePace() {
-  const minutes = (Date.now() - startTime) / 60000;
-  if (distance > 0) {
-    const p  = minutes / distance;
-    const pm = Math.floor(p);
-    const ps = String(Math.round((p - pm) * 60)).padStart(2, '0');
-    paceEl.textContent = `${pm}:${ps}`;
-  }
-}
+  const today = new Date().toISOString().slice(0,10);
+  const todayRuns = allRuns.filter(r => r.date === today);
 
-function calcCalories() {
-  const hrs = (Date.now() - startTime) / 3600000;
-  return 8 * bodyData.weight * hrs;
-}
-
-function calcDist(a, b) {
-  const R = 6371, dLat = (b[0]-a[0])*Math.PI/180, dLon = (b[1]-a[1])*Math.PI/180;
-  const la1 = a[0]*Math.PI/180, la2 = b[0]*Math.PI/180;
-  const x = Math.sin(dLat/2)**2 + Math.sin(dLon/2)**2 * Math.cos(la1) * Math.cos(la2);
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
-}
-
-/* ===== GOAL PROGRESS ===== */
-function updateGoalProgress() {
-  if (!goalData) return;
-  let ratio = 0, detailStr = '';
+  let current = 0, unit = '', label = '';
   if (goalData.type === 'distance') {
-    ratio = distance / goalData.value;
-    detailStr = `${distance.toFixed(2)} / ${goalData.value} กม.`;
+    current = todayRuns.reduce((a,r) => a + (r.distance||0), 0);
+    unit = 'กม.'; label = 'โกลระยะทางวันนี้';
   } else if (goalData.type === 'time') {
-    const elapsed = Math.floor((Date.now() - startTime) / 60000);
-    ratio = elapsed / goalData.value;
-    detailStr = `${elapsed} / ${goalData.value} นาที`;
+    current = todayRuns.reduce((a,r) => a + (r.duration||0), 0);
+    unit = 'นาที'; label = 'โกลเวลาวันนี้';
   } else {
-    const cal = Math.round(calcCalories());
-    ratio = cal / goalData.value;
-    detailStr = `${cal} / ${goalData.value} kcal`;
+    current = todayRuns.reduce((a,r) => a + (r.calories||0), 0);
+    unit = 'kcal'; label = 'โกลแคลอรี่วันนี้';
   }
-  ratio = Math.min(ratio, 1);
-  document.getElementById('goalProgressFill').style.width  = (ratio * 100) + '%';
-  document.getElementById('goalProgressPct').textContent   = Math.round(ratio * 100) + '%';
-  document.getElementById('goalProgressDetail').textContent = detailStr;
+
+  const pct = Math.min(100, Math.round((current / goalData.value) * 100));
+  document.getElementById('gLabel').textContent  = label;
+  document.getElementById('gPct').textContent    = pct + '%';
+  document.getElementById('gFill').style.width   = pct + '%';
+  document.getElementById('gDetail').textContent = `${current.toFixed(goalData.type==='distance'?1:0)} / ${goalData.value} ${unit}`;
+}
+
+function renderLastRun() {
+  if (!allRuns.length) {
+    document.getElementById('lastRunWrap').style.display = 'none';
+    document.getElementById('ctaWrap').style.display = 'block';
+    return;
+  }
+  document.getElementById('ctaWrap').style.display = 'none';
+  document.getElementById('lastRunWrap').style.display = 'block';
+  const r = allRuns[0];
+  const feelEmoji = ['😫','😕','😊','😄','🔥'][r.feeling-1] || '😊';
+  document.getElementById('lastRunCard').innerHTML = `
+    <div class="re-top">
+      <div>
+        <div style="font-weight:700;font-size:.9rem;">${formatDate(r.date)}</div>
+        <div class="re-date">${r.note || ''}</div>
+      </div>
+      <div class="re-feeling">${feelEmoji}</div>
+    </div>
+    <div class="re-metrics">
+      <div class="re-m"><span class="re-mv">${r.distance}</span><span class="re-ml">กม.</span></div>
+      <div class="re-m"><span class="re-mv">${r.duration}</span><span class="re-ml">นาที</span></div>
+      <div class="re-m"><span class="re-mv">${r.pace||'--:--'}</span><span class="re-ml">pace</span></div>
+      <div class="re-m"><span class="re-mv">${Math.round(r.calories||0)}</span><span class="re-ml">kcal</span></div>
+    </div>
+  `;
 }
 
 /* ============================================================
-   SAVE RUN → FIRESTORE
+   HISTORY
    ============================================================ */
-async function saveRun() {
-  if (distance < 0.01) { alert('ยังไม่ได้วิ่งเลยนะ 😅'); return; }
-  const cal = Math.round(calcCalories());
-  const paceRaw = (Date.now() - startTime) / 60000 / distance;
-  const pm = Math.floor(paceRaw);
-  const ps = String(Math.round((paceRaw - pm) * 60)).padStart(2, '0');
-
-  const run = {
-    date:      new Date().toLocaleString('th-TH'),
-    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    distance:  parseFloat(distance.toFixed(2)),
-    duration:  durationEl.textContent,
-    pace:      `${pm}:${ps}`,
-    calories:  cal,
-    steps:     Math.round(distance * 1300),
-    uid:       currentUser.uid,
-    displayName: currentUser.displayName || '',
-    photoURL:    currentUser.photoURL || ''
-  };
-
-  try {
-    await userDoc('runs').add(run);
-    await loadHistory();
-    await loadStats();
-    await buildMilestones();
-    // update profile menu stats
-    await updateMenuStats();
-    alert('✅ บันทึกสำเร็จ!');
-  } catch (e) {
-    alert('บันทึกไม่สำเร็จ: ' + e.message);
-  }
+function filterHistory(f, el) {
+  historyFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderHistory();
 }
 
-/* ============================================================
-   LOAD HISTORY (run tab) — Firestore
-   ============================================================ */
-async function loadHistory() {
-  try {
-    const snap = await userDoc('runs').orderBy('timestamp', 'desc').limit(5).get();
-    const container = document.getElementById('historyList');
-    if (snap.empty) {
-      container.innerHTML = '<p style="color:#6e7681;font-size:.82rem;text-align:center;padding:16px;">ยังไม่มีประวัติ เริ่มวิ่งเลย! 🏃</p>';
-      return;
-    }
-    container.innerHTML = snap.docs.map(d => {
-      const r = d.data();
-      return `<div class="run-card">
+function renderHistory() {
+  const now = new Date();
+  let filtered = allRuns;
+
+  if (historyFilter === 'week') {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - now.getDay() + 1);
+    monday.setHours(0,0,0,0);
+    filtered = allRuns.filter(r => new Date(r.date) >= monday);
+  } else if (historyFilter === 'month') {
+    filtered = allRuns.filter(r => {
+      const d = new Date(r.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+  }
+
+  const el = document.getElementById('histList');
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🏃</span>ยังไม่มีประวัติการวิ่ง</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(r => {
+    const feelEmoji = ['😫','😕','😊','😄','🔥'][(r.feeling||3)-1];
+    return `
+    <div class="run-entry">
+      <div class="re-top">
         <div>
-          <strong>${r.date}</strong>
-          <p>📏 ${r.distance} กม. &nbsp;⏱ ${r.duration} &nbsp;⚡ ${r.pace}/กม.</p>
-          <p>👣 ${(r.steps||0).toLocaleString()} ก้าว</p>
+          <div style="font-weight:700;font-size:.88rem;">${formatDate(r.date)}</div>
+          ${r.heartRate ? `<div class="re-hr">❤️ ${r.heartRate} bpm</div>` : ''}
         </div>
-        <div class="run-cals">🔥${r.calories||0}</div>
-      </div>`;
-    }).join('');
-  } catch(e) { console.error(e); }
+        <div class="re-feeling">${feelEmoji}</div>
+      </div>
+      <div class="re-metrics">
+        <div class="re-m"><span class="re-mv">${r.distance}</span><span class="re-ml">กม.</span></div>
+        <div class="re-m"><span class="re-mv">${r.duration}</span><span class="re-ml">นาที</span></div>
+        <div class="re-m"><span class="re-mv">${r.pace||'--:--'}</span><span class="re-ml">pace</span></div>
+        <div class="re-m"><span class="re-mv">${Math.round(r.calories||0)}</span><span class="re-ml">kcal</span></div>
+      </div>
+      ${r.note ? `<div class="re-note">💬 ${r.note}</div>` : ''}
+      <div class="re-actions"><button class="re-del" onclick="openDelete('${r.id}')">🗑 ลบ</button></div>
+    </div>`;
+  }).join('');
 }
 
 /* ============================================================
-   STATS TAB — Firestore
+   STATS
    ============================================================ */
-async function loadStats() {
-  try {
-    const snap = await userDoc('runs').orderBy('timestamp', 'desc').get();
-    const runs = snap.docs.map(d => d.data());
-    const n = runs.length;
+function renderStats() {
+  if (!allRuns.length) return;
 
-    document.getElementById('totalRuns').textContent = n;
-    if (!n) {
-      ['totalDist','totalCals','avgPace','bestDist','bestPace'].forEach(id => {
-        document.getElementById(id).textContent = id.includes('Pace') ? '--:--' : '0';
-      });
-      buildWeekChart([]);
-      document.getElementById('fullHistory').innerHTML = '<p style="color:#6e7681;font-size:.82rem;text-align:center;padding:16px;">ยังไม่มีประวัติ</p>';
-      return;
-    }
+  const totalDist = allRuns.reduce((a,r) => a + (r.distance||0), 0);
+  const totalCals = allRuns.reduce((a,r) => a + (r.calories||0), 0);
+  const paces = allRuns.filter(r => r.pace && r.pace !== '--:--').map(r => paceToMin(r.pace));
+  const avgPace = paces.length ? paces.reduce((a,b)=>a+b,0)/paces.length : 0;
+  const bestDist = Math.max(...allRuns.map(r => r.distance||0));
+  const bestPace = paces.length ? Math.min(...paces) : 0;
 
-    const totalDist = runs.reduce((a,r) => a + (r.distance||0), 0);
-    const totalCals = runs.reduce((a,r) => a + (r.calories||0), 0);
-    const bestDist  = Math.max(...runs.map(r => r.distance||0));
-    const paces     = runs.map(r => paceToMin(r.pace)).filter(x => x > 0);
-    const avgP      = paces.length ? paces.reduce((a,b) => a+b, 0)/paces.length : 0;
-    const bestP     = paces.length ? Math.min(...paces) : 0;
+  document.getElementById('st-total-dist').textContent = totalDist.toFixed(1);
+  document.getElementById('st-total-runs').textContent = allRuns.length;
+  document.getElementById('st-total-cals').textContent = Math.round(totalCals);
+  document.getElementById('st-avg-pace').textContent   = avgPace ? minToDisplay(avgPace) : '--:--';
+  document.getElementById('st-best-dist').textContent  = bestDist.toFixed(1);
+  document.getElementById('st-best-pace').textContent  = bestPace ? minToDisplay(bestPace) : '--:--';
 
-    document.getElementById('totalDist').textContent = totalDist.toFixed(2);
-    document.getElementById('totalCals').textContent = totalCals.toLocaleString();
-    document.getElementById('avgPace').textContent   = minToDisplay(avgP);
-    document.getElementById('bestDist').textContent  = bestDist.toFixed(2);
-    document.getElementById('bestPace').textContent  = minToDisplay(bestP);
-
-    buildWeekChart(runs);
-
-    document.getElementById('fullHistory').innerHTML = runs.map(r => `
-      <div class="hist-row">
-        <div>
-          <div class="hist-date">${r.date}</div>
-          <div class="hist-meta">⏱ ${r.duration} &nbsp;⚡ ${r.pace}/กม. &nbsp;🔥 ${r.calories||0} kcal</div>
-        </div>
-        <div class="hist-dist">${r.distance} กม.</div>
-      </div>`).join('');
-
-    await updateMenuStats(totalDist, n, totalCals);
-  } catch(e) { console.error(e); }
+  buildBarChart();
+  buildPaceChart();
+  buildMilestones(totalDist);
 }
 
-async function updateMenuStats(dist, runs, cals) {
-  if (dist === undefined) {
-    const snap = await userDoc('runs').get();
-    const data = snap.docs.map(d => d.data());
-    dist = data.reduce((a,r) => a+(r.distance||0), 0);
-    runs = data.length;
-    cals = data.reduce((a,r) => a+(r.calories||0), 0);
-  }
-  document.getElementById('menuTotalDist').textContent = dist.toFixed(1);
-  document.getElementById('menuTotalRuns').textContent = runs;
-  document.getElementById('menuTotalCals').textContent = Math.round(cals);
-}
-
-function paceToMin(s) {
-  if (!s || s === '--:--') return 0;
-  const parts = s.split(':');
-  return parseInt(parts[0]) + (parseInt(parts[1]||0)/60);
-}
-function minToDisplay(m) {
-  if (!m) return '--:--';
-  const pm = Math.floor(m);
-  const ps = String(Math.round((m-pm)*60)).padStart(2,'0');
-  return `${pm}:${ps}`;
-}
-
-function buildWeekChart(runs) {
+function buildBarChart() {
   const days = ['อา','จ','อ','พ','พฤ','ศ','ส'];
   const now = new Date();
   const buckets = Array(7).fill(0);
-  runs.forEach(r => {
-    if (!r.timestamp) return;
-    const d = r.timestamp.toDate ? r.timestamp.toDate() : new Date(r.date);
-    const diff = Math.floor((now - d) / 86400000);
-    if (diff >= 0 && diff < 7) buckets[6 - diff] += (r.distance||0);
-  });
+  const labels  = Array(7).fill('');
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - 6 + i);
+    labels[i] = days[d.getDay()];
+    const ds = d.toISOString().slice(0,10);
+    buckets[i] = allRuns.filter(r => r.date === ds).reduce((a,r) => a+(r.distance||0), 0);
+  }
+
   const max = Math.max(...buckets, 1);
-  document.getElementById('weekChart').innerHTML = buckets.map((v,i) => {
-    const dayIdx = (now.getDay() - 6 + i + 7) % 7;
-    const h = Math.max(Math.round((v/max)*80), v>0?6:0);
-    return `<div class="bar-wrap">
-      <div class="bar-val">${v>0?v.toFixed(1):''}</div>
-      <div class="bar" style="height:${h}px"></div>
-      <div class="bar-label">${days[dayIdx]}</div>
+  document.getElementById('barChart').innerHTML = buckets.map((v,i) => {
+    const h = Math.max(Math.round((v/max)*80), v>0?4:0);
+    return `<div class="bc-wrap">
+      <div class="bc-val">${v>0?v.toFixed(1):''}</div>
+      <div class="bc-bar${v===0?' empty':''}" style="height:${h}px"></div>
+      <div class="bc-lbl">${labels[i]}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildPaceChart() {
+  const last10 = [...allRuns].reverse().slice(-10);
+  if (!last10.length) return;
+  const paces = last10.map(r => paceToMin(r.pace||''));
+  const maxP = Math.max(...paces.filter(Boolean), 1);
+
+  document.getElementById('paceChart').innerHTML = last10.map((r,i) => {
+    const p = paces[i];
+    const h = p ? Math.max(Math.round((p/maxP)*60), 6) : 0;
+    return `<div class="pc-wrap">
+      <div class="pc-bar${!p?' empty':''}" style="height:${h}px"></div>
+      <div class="pc-lbl">${p ? minToDisplay(p) : '--'}</div>
+    </div>`;
+  }).join('');
+}
+
+const MILESTONES_DEF = [
+  { km:1,   icon:'🎽', name:'วิ่งครั้งแรก' },
+  { km:10,  icon:'🥉', name:'10 กม.' },
+  { km:21,  icon:'🥈', name:'Half Marathon' },
+  { km:42,  icon:'🥇', name:'Full Marathon' },
+  { km:100, icon:'🏆', name:'100 กม.' },
+  { km:200, icon:'🌟', name:'200 กม.' },
+  { km:500, icon:'💎', name:'500 กม.' },
+];
+
+function buildMilestones(totalDist) {
+  document.getElementById('milestones').innerHTML = MILESTONES_DEF.map(m => {
+    const done = totalDist >= m.km;
+    const pct = Math.min(100, Math.round((totalDist / m.km)*100));
+    return `<div class="mstone">
+      <div class="ms-ico">${m.icon}</div>
+      <div class="ms-body">
+        <div class="ms-name">${m.name}</div>
+        <div class="ms-km">${m.km} กม. · สะสม ${Math.min(totalDist,m.km).toFixed(1)} กม.</div>
+      </div>
+      <span class="ms-badge ${done?'ms-done':'ms-todo'}">${done?'✓ สำเร็จ':pct+'%'}</span>
     </div>`;
   }).join('');
 }
 
 /* ============================================================
-   PLAN TAB
+   MENU STATS
    ============================================================ */
-const PROGRAMS = [
-  { name:'มือใหม่',       icon:'🌱', desc:'3 วัน/สัปดาห์ 3-5 กม.',   days:3, dist:3,  pace:7 },
-  { name:'พัฒนาฟอร์ม',   icon:'📈', desc:'4 วัน/สัปดาห์ 5-8 กม.',   days:4, dist:5,  pace:6 },
-  { name:'Half Marathon', icon:'🏅', desc:'5 วัน/สัปดาห์ 8-15 กม.',  days:5, dist:10, pace:5 },
-  { name:'Full Marathon', icon:'🏆', desc:'6 วัน/สัปดาห์ 15+ กม.',   days:6, dist:15, pace:4 },
-];
-
-function buildPrograms() {
-  document.getElementById('programGrid').innerHTML = PROGRAMS.map((p,i) => `
-    <div class="prog-item" onclick="selectProgram(${i},this)">
-      <span class="prog-name">${p.icon} ${p.name}</span>
-      <span class="prog-desc">${p.desc}</span>
-    </div>`).join('');
+function updateMenuStats() {
+  const totalDist = allRuns.reduce((a,r) => a+(r.distance||0), 0);
+  const totalCals = allRuns.reduce((a,r) => a+(r.calories||0), 0);
+  document.getElementById('mDist').textContent = totalDist.toFixed(1);
+  document.getElementById('mRuns').textContent = allRuns.length;
+  document.getElementById('mCals').textContent = Math.round(totalCals);
 }
 
-function selectProgram(i, el) {
-  document.querySelectorAll('.prog-item').forEach(x => x.classList.remove('selected'));
-  el.classList.add('selected');
-  const p = PROGRAMS[i];
-  planData = { days:p.days, dist:p.dist, pace:p.pace };
-  document.getElementById('planDays').textContent = p.days;
-  document.getElementById('planDist').textContent = p.dist.toFixed(1);
-  document.getElementById('planPace').value = p.pace;
-  buildWeeklySchedule();
+/* ============================================================
+   LOG MODAL
+   ============================================================ */
+function openLog() {
+  // Default date = today
+  document.getElementById('logDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('logDist').value = '';
+  document.getElementById('logTime').value = '';
+  document.getElementById('logHR').value   = '';
+  document.getElementById('logNote').value = '';
+  document.getElementById('logCalcRow').style.display = 'none';
+  setFeeling(3, document.querySelector('.feel-btn[data-f="3"]'));
+
+  document.getElementById('logOverlay').classList.add('open');
+  document.getElementById('logModal').classList.add('open');
+  setTimeout(() => document.getElementById('logDist').focus(), 400);
 }
 
-function changePlanVal(key, delta) {
-  if (key === 'days') {
-    planData.days = Math.min(7, Math.max(1, planData.days + delta));
-    document.getElementById('planDays').textContent = planData.days;
-  } else {
-    planData.dist = Math.max(1, Math.round((planData.dist + delta) * 10) / 10);
-    document.getElementById('planDist').textContent = planData.dist.toFixed(1);
+function closeLog() {
+  document.getElementById('logOverlay').classList.remove('open');
+  document.getElementById('logModal').classList.remove('open');
+}
+
+function calcLog() {
+  const dist = parseFloat(document.getElementById('logDist').value);
+  const time = parseFloat(document.getElementById('logTime').value);
+  if (!dist || !time) { document.getElementById('logCalcRow').style.display = 'none'; return; }
+
+  const paceMin = time / dist;
+  const speed   = (dist / time) * 60;
+
+  // MET-based calorie calculation
+  let met = 8;
+  if (speed < 8) met = 6;
+  else if (speed < 10) met = 8;
+  else if (speed < 12) met = 10;
+  else if (speed < 14) met = 11;
+  else met = 12.5;
+
+  const cals = met * bodyData.weight * (time / 60);
+
+  document.getElementById('calcPace').textContent  = minToDisplay(paceMin);
+  document.getElementById('calcSpeed').textContent = speed.toFixed(1);
+  document.getElementById('calcCals').textContent  = Math.round(cals);
+  document.getElementById('logCalcRow').style.display = 'grid';
+}
+
+function setFeeling(val, el) {
+  currentFeeling = val;
+  document.querySelectorAll('.feel-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+async function saveLog() {
+  const dist = parseFloat(document.getElementById('logDist').value);
+  const time = parseFloat(document.getElementById('logTime').value);
+  const date = document.getElementById('logDate').value;
+
+  if (!dist || !time || !date) { alert('กรุณากรอกระยะทาง เวลา และวันที่'); return; }
+
+  const paceMin = time / dist;
+  const speed   = (dist / time) * 60;
+  let met = 8;
+  if (speed < 8) met = 6;
+  else if (speed < 10) met = 8;
+  else if (speed < 12) met = 10;
+  else if (speed < 14) met = 11;
+  else met = 12.5;
+  const cals = met * bodyData.weight * (time / 60);
+
+  const hrVal = document.getElementById('logHR').value;
+  const note  = document.getElementById('logNote').value.trim();
+
+  const btn = document.getElementById('saveLogBtn');
+  btn.innerHTML = '<span class="spin"></span> บันทึก...';
+  btn.disabled = true;
+
+  try {
+    const docRef = await runsCol().add({
+      date,
+      distance:  Math.round(dist * 100) / 100,
+      duration:  Math.round(time),
+      pace:      minToDisplay(paceMin),
+      speed:     Math.round(speed * 10) / 10,
+      calories:  Math.round(cals),
+      heartRate: hrVal ? parseInt(hrVal) : null,
+      note:      note || null,
+      feeling:   currentFeeling,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Add to local array
+    allRuns.unshift({
+      id: docRef.id,
+      date, distance: Math.round(dist*100)/100,
+      duration: Math.round(time),
+      pace: minToDisplay(paceMin),
+      speed: Math.round(speed*10)/10,
+      calories: Math.round(cals),
+      heartRate: hrVal ? parseInt(hrVal) : null,
+      note: note || null,
+      feeling: currentFeeling
+    });
+
+    // Re-sort by date desc
+    allRuns.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    renderAll();
+    closeLog();
+  } catch(e) {
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+  } finally {
+    btn.innerHTML = '💾 บันทึก';
+    btn.disabled = false;
   }
-  buildWeeklySchedule();
 }
 
-async function savePlan() {
-  planData.pace = parseInt(document.getElementById('planPace').value);
-  await fsSet('settings', 'plan', planData);
-  buildWeeklySchedule();
-  alert('✅ บันทึกแผนแล้ว!');
+/* ============================================================
+   DELETE
+   ============================================================ */
+function openDelete(id) {
+  deleteTarget = id;
+  document.getElementById('delOverlay').classList.add('open');
+  document.getElementById('delModal').classList.add('open');
 }
 
-function buildWeeklySchedule() {
-  const DAYNAMES = ['วันอาทิตย์','วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสฯ','วันศุกร์','วันเสาร์'];
-  const today = new Date().getDay();
-  const runDays = [];
-  const step = 7 / planData.days;
-  for (let i = 0; i < planData.days; i++) runDays.push(Math.round(i * step) % 7);
-  document.getElementById('weeklySchedule').innerHTML = Array(7).fill(0).map((_,i) => {
-    const isRun   = runDays.includes(i);
-    const isToday = i === today;
-    return `<div class="week-row" style="${isToday?'background:#1f1208;border-radius:10px;padding:8px 10px;':''}">
-      <span class="week-day">${DAYNAMES[i].slice(3,6)}</span>
-      <span class="week-task">${isRun?`วิ่ง ${planData.dist} กม. (pace ${planData.pace}:00/กม.)`:'พัก / ยืดเส้น'}</span>
-      <span class="week-badge ${isRun?'badge-run':'badge-rest'}">${isRun?'วิ่ง':'พัก'}</span>
-    </div>`;
-  }).join('');
+function closeDelete() {
+  deleteTarget = null;
+  document.getElementById('delOverlay').classList.remove('open');
+  document.getElementById('delModal').classList.remove('open');
 }
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+  if (!deleteTarget) return;
+  try {
+    await runsCol().doc(deleteTarget).delete();
+    allRuns = allRuns.filter(r => r.id !== deleteTarget);
+    renderAll();
+    closeDelete();
+  } catch(e) {
+    alert('ลบไม่สำเร็จ: ' + e.message);
+  }
+});
 
 /* ============================================================
    GOAL TAB
    ============================================================ */
-function selectGoalType(type, el, silent=false) {
+function setGoalType(type, el, silent = false) {
   currentGoalType = type;
-  document.querySelectorAll('.goal-type-btn').forEach(b => b && b.classList.remove('active'));
+  document.querySelectorAll('.gt-btn').forEach(b => b && b.classList.remove('active'));
   if (el) el.classList.add('active');
-  document.getElementById('goalDistanceInput').style.display = type==='distance'?'block':'none';
-  document.getElementById('goalTimeInput').style.display     = type==='time'?'block':'none';
-  document.getElementById('goalCalInput').style.display      = type==='calories'?'block':'none';
+  document.getElementById('gi-distance').style.display = type === 'distance' ? 'block' : 'none';
+  document.getElementById('gi-time').style.display     = type === 'time'     ? 'block' : 'none';
+  document.getElementById('gi-calories').style.display = type === 'calories' ? 'block' : 'none';
 }
 
-function changeGoal(delta) {
-  const ids = { distance:'goalDistVal', time:'goalTimeVal', calories:'goalCalVal' };
+function adjGoal(delta) {
+  const ids = { distance:'gv-dist', time:'gv-time', calories:'gv-cals' };
   const el = document.getElementById(ids[currentGoalType]);
   el.textContent = Math.max(1, parseInt(el.textContent) + delta);
 }
 
 async function saveGoal() {
   let value;
-  if (currentGoalType === 'distance') value = parseInt(document.getElementById('goalDistVal').textContent);
-  else if (currentGoalType === 'time') value = parseInt(document.getElementById('goalTimeVal').textContent);
-  else value = parseInt(document.getElementById('goalCalVal').textContent);
+  if (currentGoalType === 'distance') value = parseInt(document.getElementById('gv-dist').textContent);
+  else if (currentGoalType === 'time') value = parseInt(document.getElementById('gv-time').textContent);
+  else value = parseInt(document.getElementById('gv-cals').textContent);
+
   goalData = { type: currentGoalType, value };
-  await fsSet('settings', 'goal', goalData);
+  await fsSet('goal', goalData);
   updateHeaderGoal();
-  await buildMilestones();
-  alert('✅ ตั้งโกลแล้ว!');
+  renderGoalProgress();
+  alert('✅ บันทึกโกลแล้ว!');
 }
 
 function updateHeaderGoal() {
-  if (!goalData) return;
-  const labels = { distance:`🎯 ${goalData.value} กม.`, time:`🎯 ${goalData.value} นาที`, calories:`🎯 ${goalData.value} kcal` };
-  document.getElementById('headerGoalText').textContent = labels[goalData.type] || 'ตั้งโกลก่อนวิ่ง';
+  const labels = {
+    distance: `🎯 ${goalData.value} กม./วัน`,
+    time:     `🎯 ${goalData.value} นาที/วัน`,
+    calories: `🎯 ${goalData.value} kcal/วัน`
+  };
+  document.getElementById('headerGoalText').textContent = labels[goalData.type] || 'ตั้งโกลก่อน';
 }
 
 /* ============================================================
-   BODY DATA — Firestore
+   BODY
    ============================================================ */
-function changeBody(key, delta) {
+function adjBody(key, delta) {
   if (key === 'weight') {
     bodyData.weight = Math.max(30, Math.min(200, bodyData.weight + delta));
-    document.getElementById('bodyWeight').textContent = bodyData.weight;
+    document.getElementById('bWeight').textContent = bodyData.weight;
   } else {
     bodyData.age = Math.max(10, Math.min(99, bodyData.age + delta));
-    document.getElementById('bodyAge').textContent = bodyData.age;
+    document.getElementById('bAge').textContent = bodyData.age;
   }
 }
 
 async function saveBody() {
-  bodyData.gender = document.getElementById('bodyGender').value;
-  await fsSet('settings', 'body', bodyData);
-  alert('✅ บันทึกข้อมูลแล้ว!');
+  bodyData.gender = document.getElementById('bGender').value;
+  await fsSet('body', bodyData);
+  alert('✅ บันทึกข้อมูลร่างกายแล้ว!');
 }
 
 /* ============================================================
-   MILESTONES — Firestore aggregate
+   PROGRAMS
    ============================================================ */
-const MILESTONES = [
-  { km:1,   icon:'🎽', title:'วิ่งครั้งแรก',    desc:'เริ่มต้นการเดินทาง' },
-  { km:10,  icon:'🥉', title:'10 กม.',           desc:'สะสมได้ 10 กม.' },
-  { km:21,  icon:'🥈', title:'Half Marathon',    desc:'สะสมได้ 21 กม.' },
-  { km:42,  icon:'🥇', title:'Full Marathon',    desc:'สะสมได้ 42 กม.' },
-  { km:100, icon:'🏆', title:'100 กม.',          desc:'นักวิ่งตัวจริง' },
-  { km:200, icon:'🌟', title:'200 กม.',          desc:'ระดับสุดยอด' },
+const PROGRAMS = [
+  { icon:'🌱', name:'มือใหม่',       desc:'3 วัน/สัปดาห์\n3–5 กม./ครั้ง\nPace ~7 น./กม.' },
+  { icon:'📈', name:'พัฒนาฟอร์ม',   desc:'4 วัน/สัปดาห์\n5–8 กม./ครั้ง\nPace ~6 น./กม.' },
+  { icon:'🏅', name:'Half Marathon', desc:'5 วัน/สัปดาห์\n8–15 กม./ครั้ง\nPace ~5 น./กม.' },
+  { icon:'🏆', name:'Full Marathon', desc:'6 วัน/สัปดาห์\n15+ กม./ครั้ง\nPace ~4 น./กม.' },
 ];
 
-async function buildMilestones() {
-  const snap = await userDoc('runs').get();
-  const totalDist = snap.docs.reduce((a,d) => a + (d.data().distance||0), 0);
-  document.getElementById('goalMilestones').innerHTML = MILESTONES.map(m => {
-    const done = totalDist >= m.km;
-    return `<div class="milestone">
-      <div class="ms-icon">${m.icon}</div>
-      <div class="ms-info">
-        <div class="ms-title">${m.title}</div>
-        <div class="ms-desc">${m.desc} · ${m.km} กม.</div>
-      </div>
-      <span class="ms-badge ${done?'ms-done':'ms-todo'}">${done?'✓ สำเร็จ':'ยังไม่ถึง'}</span>
-    </div>`;
-  }).join('');
+function buildPrograms() {
+  document.getElementById('progGrid').innerHTML = PROGRAMS.map(p => `
+    <div class="prog-card">
+      <div class="prog-icon">${p.icon}</div>
+      <div class="prog-name">${p.name}</div>
+      <div class="prog-desc">${p.desc.replace(/\n/g,'<br>')}</div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   TIPS
+   ============================================================ */
+const TIPS = [
+  { icon:'💧', title:'ดื่มน้ำก่อนวิ่ง', body:'500ml ก่อนออกวิ่ง 30 นาที และระหว่างวิ่งทุก 20 นาที' },
+  { icon:'🧘', title:'วอร์มอัพ 5-10 นาที', body:'ยืดกล้ามเนื้อและเดินเร็วก่อนเพิ่มความเร็ว' },
+  { icon:'🌡️', title:'เวลาที่เหมาะ', body:'เช้าตรู่ 05:00-07:00 หรือเย็น 17:00-19:00 หลีกเลี่ยง 10-16 น.' },
+  { icon:'👟', title:'เลือกรองเท้าดี', body:'เปลี่ยนรองเท้าทุก 500-800 กม. เพื่อป้องกันบาดเจ็บ' },
+  { icon:'📈', title:'เพิ่มระยะค่อยๆ', body:'เพิ่มระยะรายสัปดาห์ไม่เกิน 10% ป้องกัน overtraining' },
+  { icon:'😴', title:'พักให้เพียงพอ', body:'นอน 7-9 ชั่วโมง ร่างกายซ่อมแซมตัวเองขณะหลับ' },
+];
+
+function buildTips() {
+  document.getElementById('tipsGrid').innerHTML = TIPS.map(t => `
+    <div class="tip-card">
+      <strong>${t.icon} ${t.title}</strong>
+      ${t.body}
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   AI ANALYSIS
+   ============================================================ */
+async function runAI() {
+  const btn = document.getElementById('aiAnalyzeBtn');
+  btn.innerHTML = '<span class="spin"></span> กำลังวิเคราะห์...';
+  btn.disabled = true;
+
+  const result = document.getElementById('aiResult');
+  const textEl = document.getElementById('aiText');
+  result.style.display = 'none';
+
+  // Build summary for AI
+  const totalDist = allRuns.reduce((a,r) => a+(r.distance||0), 0).toFixed(1);
+  const totalRuns = allRuns.length;
+  const now = new Date();
+  const monday = new Date(now); monday.setDate(now.getDate()-now.getDay()+1); monday.setHours(0,0,0,0);
+  const weekRuns = allRuns.filter(r => new Date(r.date) >= monday);
+  const weekDist = weekRuns.reduce((a,r)=>a+(r.distance||0),0).toFixed(1);
+  const paces = allRuns.filter(r=>r.pace&&r.pace!=='--:--').map(r=>paceToMin(r.pace));
+  const avgPace = paces.length ? minToDisplay(paces.reduce((a,b)=>a+b,0)/paces.length) : 'ไม่มีข้อมูล';
+  const feelings = allRuns.map(r=>r.feeling||3);
+  const avgFeeling = feelings.length ? (feelings.reduce((a,b)=>a+b,0)/feelings.length).toFixed(1) : 3;
+  const recent3 = allRuns.slice(0,3).map(r=>`${r.date}: ${r.distance}กม. ${r.duration}นาที pace ${r.pace||'--'}`).join('\n');
+
+  const prompt = `คุณเป็นโค้ชวิ่งผู้เชี่ยวชาญชาวไทย วิเคราะห์ข้อมูลการวิ่งนี้และให้คำแนะนำเป็นภาษาไทย เป็นกันเอง กระชับ:
+
+ข้อมูลนักวิ่ง:
+- น้ำหนัก: ${bodyData.weight} กก. | อายุ: ${bodyData.age} ปี | เพศ: ${bodyData.gender==='male'?'ชาย':'หญิง'}
+- โกล: ${goalData.type==='distance'?goalData.value+' กม./วัน':goalData.type==='time'?goalData.value+' นาที/วัน':goalData.value+' kcal/วัน'}
+
+สถิติ:
+- วิ่งทั้งหมด: ${totalRuns} ครั้ง รวม ${totalDist} กม.
+- สัปดาห์นี้: ${weekRuns.length} ครั้ง รวม ${weekDist} กม.
+- Pace เฉลี่ย: ${avgPace}
+- ความรู้สึกเฉลี่ย: ${avgFeeling}/5
+
+3 การวิ่งล่าสุด:
+${recent3 || 'ยังไม่มีข้อมูล'}
+
+ให้คำแนะนำ 3-4 ข้อ ครอบคลุม: ความก้าวหน้า, จุดที่ต้องพัฒนา, เป้าหมายสัปดาห์หน้า ใช้ emoji ประกอบ`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.map(c => c.text||'').join('') || 'ไม่สามารถวิเคราะห์ได้';
+    textEl.textContent = text;
+    result.style.display = 'block';
+  } catch(e) {
+    textEl.textContent = '❌ เชื่อมต่อ AI ไม่สำเร็จ กรุณาลองใหม่';
+    result.style.display = 'block';
+  } finally {
+    btn.innerHTML = '🔄 วิเคราะห์ใหม่';
+    btn.disabled = false;
+  }
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function paceToMin(s) {
+  if (!s || s === '--:--') return 0;
+  const [m, sec] = s.split(':');
+  return parseInt(m) + (parseInt(sec||0)/60);
+}
+
+function minToDisplay(m) {
+  if (!m) return '--:--';
+  const pm = Math.floor(m);
+  const ps = String(Math.round((m - pm) * 60)).padStart(2, '0');
+  return `${pm}:${ps}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543} (${days[d.getDay()]})`;
 }
