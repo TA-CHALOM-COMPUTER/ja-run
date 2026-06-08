@@ -73,6 +73,7 @@
     <button class="tab" data-tab="history">📋 ประวัติ</button>
     <button class="tab" data-tab="stats">📊 สถิติ</button>
     <button class="tab" data-tab="goal">🎯 โกล</button>
+    <button class="tab" data-tab="water">💧 น้ำ</button>
 
   </nav>
 
@@ -225,6 +226,56 @@
   </div>
 
 
+
+  <!-- ===== WATER ===== -->
+  <div class="page" id="tab-water">
+    <div class="page-inner">
+
+      <div class="water-header">
+        <div class="water-title-row">
+          <h2 class="page-title" style="margin:0">💧 การดื่มน้ำวันนี้</h2>
+          <button class="water-reset-btn" onclick="resetWater()">รีเซ็ต</button>
+        </div>
+        <div class="water-progress-wrap">
+          <div class="water-total-row">
+            <span class="water-total-val" id="waterTotalVal">0</span>
+            <span class="water-total-unit">/ <span id="waterGoalVal">2,250</span> ml</span>
+          </div>
+          <div class="water-ring-wrap">
+            <svg class="water-ring" viewBox="0 0 120 120">
+              <circle class="ring-bg" cx="60" cy="60" r="50"/>
+              <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="50"
+                stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+            </svg>
+            <div class="water-ring-inner">
+              <span class="water-ring-pct" id="waterPct">0%</span>
+              <span class="water-ring-lbl">ดื่มแล้ว</span>
+            </div>
+          </div>
+          <div class="water-mini-stats">
+            <div class="wms"><span id="wDrank">0</span><small>รายการ ✓</small></div>
+            <div class="wms"><span id="wLeft">9</span><small>รายการ เหลือ</small></div>
+            <div class="wms"><span id="wCups">0</span><small>แก้ว</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="water-table-card">
+        <div class="water-table-head">
+          <span>เวลา</span>
+          <span>ปริมาณ</span>
+          <span>สถานะ</span>
+        </div>
+        <div id="waterList"></div>
+      </div>
+
+      <div class="water-note-card">
+        <span>💡</span>
+        <p>ดื่มน้ำสะอาดอุณหภูมิห้อง หลีกเลี่ยงเครื่องดื่มที่มีน้ำตาลสูง ร่างกายต้องการน้ำ 30–35 ml/น้ำหนักตัว 1 กก. ต่อวัน</p>
+      </div>
+
+    </div>
+  </div>
 
 </div><!-- end mainApp -->
 
