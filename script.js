@@ -171,18 +171,28 @@ function renderHome() {
 }
 
 function updateHomeSummaryWater() {
-  const key = 'water_' + new Date().toISOString().slice(0,10);
+  const isWeekend = [0,6].includes(new Date().getDay());
+  const dayType = isWeekend ? 'weekend' : 'weekday';
+  const schedule = ROUTINE_SCHEDULE[dayType];
+  const key = getRoutineKey(dayType);
   const saved = localStorage.getItem(key);
   const checked = saved ? JSON.parse(saved) : {};
-  const total = WATER_SCHEDULE.reduce((a,w)=>a+w.ml,0);
-  const drank = WATER_SCHEDULE.reduce((a,w,i)=> checked[i] ? a+w.ml : a, 0);
-  const pct = Math.round((drank/total)*100);
+
+  const waterItems = schedule.filter(item => item.water);
+  const total = waterItems.reduce((a,w) => a + w.waterMl, 0);
+  const drank = waterItems.reduce((a,w,wi) => {
+    // find original index of this water item in full schedule
+    const origIdx = schedule.indexOf(w);
+    return checked[origIdx] ? a + w.waterMl : a;
+  }, 0);
+  const pct = total ? Math.round((drank/total)*100) : 0;
+
   const el = document.getElementById('homeWaterVal');
   const el2 = document.getElementById('homeWaterGoal');
   const bar = document.getElementById('homeWaterBar');
   const pctEl = document.getElementById('homeWaterPct');
-  if (el) el.textContent = drank.toLocaleString();
-  if (el2) el2.textContent = total.toLocaleString();
+  if (el) el.textContent = drank;
+  if (el2) el2.textContent = total;
   if (bar) bar.style.width = pct + '%';
   if (pctEl) pctEl.textContent = pct + '%';
 }
@@ -808,39 +818,40 @@ ${recent3 || 'ยังไม่มีข้อมูล'}
 const ROUTINE_SCHEDULE = {
   weekday: [
     { time:'05:55', name:'ตื่นนอน', tag:'rest', water:false },
-    { time:'06:00', name:'วิ่งออกกำลังกาย', tag:'run', water:true, waterLabel:'ดื่มน้ำก่อนวิ่ง 500ml', waterMl:500 },
-    { time:'06:55', name:'ดื่มน้ำหลังวิ่ง', tag:'water', water:true, waterLabel:'หลังวิ่ง 500ml', waterMl:500 },
+    { time:'06:00', name:'วิ่งออกกำลังกาย', tag:'run', water:false },
+    { time:'06:55', name:'💧 ดื่มน้ำหลังวิ่ง', tag:'water', water:true, waterMl:100 },
     { time:'07:00', name:'ทำกับข้าวทานเช้า', tag:'meal', water:false },
     { time:'07:25', name:'ออกมาทำงาน', tag:'work', water:false },
-    { time:'08:00', name:'เริ่มทำงาน', tag:'work', water:true, waterLabel:'ดื่มน้ำช่วงเช้า 250ml', waterMl:250 },
-    { time:'09:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงเช้า 250ml', waterMl:250 },
-    { time:'10:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเที่ยง 250ml', waterMl:250 },
-    { time:'12:00', name:'ทานข้าวเที่ยง', tag:'meal', water:true, waterLabel:'ดื่มน้ำพร้อมอาหาร 250ml', waterMl:250 },
+    { time:'08:00', name:'เริ่มทำงาน · 💧 ดื่มน้ำ', tag:'work', water:true, waterMl:100 },
+    { time:'09:00', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'10:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'12:00', name:'ทานข้าวเที่ยง · 💧 ดื่มน้ำ', tag:'meal', water:true, waterMl:100 },
     { time:'13:00', name:'ทำงานต่อ', tag:'work', water:false },
-    { time:'13:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงบ่าย 250ml', waterMl:250 },
-    { time:'15:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'บ่ายแก่ 250ml', waterMl:250 },
-    { time:'16:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเลิกงาน 250ml', waterMl:250 },
+    { time:'13:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'15:00', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'16:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
     { time:'17:00', name:'เลิกงาน', tag:'work', water:false },
-    { time:'18:00', name:'ฝึกเล่นพิณ', tag:'music', water:true, waterLabel:'ดื่มน้ำ 250ml', waterMl:250 },
+    { time:'18:00', name:'ฝึกเล่นพิณ · 💧 ดื่มน้ำ', tag:'music', water:true, waterMl:100 },
     { time:'20:00', name:'อาบน้ำ', tag:'rest', water:false },
     { time:'20:20', name:'Update ร้าน com / หาเงิน Online', tag:'work', water:false },
-    { time:'21:00', name:'ดื่มน้ำก่อนนอน', tag:'water', water:true, waterLabel:'ก่อนนอน 100ml', waterMl:100 },
+    { time:'21:00', name:'💧 ดื่มน้ำก่อนนอน', tag:'water', water:true, waterMl:100 },
     { time:'22:00', name:'นอน', tag:'rest', water:false },
   ],
   weekend: [
-    { time:'08:00', name:'ตื่นนอน', tag:'rest', water:true, waterLabel:'ดื่มน้ำหลังตื่น 500ml', waterMl:500 },
+    { time:'08:00', name:'ตื่นนอน', tag:'rest', water:false },
     { time:'09:00', name:'ถูบ้าน / ล้างห้องน้ำ', tag:'rest', water:false },
-    { time:'10:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงเช้า 250ml', waterMl:250 },
-    { time:'11:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเที่ยง 250ml', waterMl:250 },
-    { time:'12:00', name:'ทำกับข้าวทานเที่ยง', tag:'meal', water:true, waterLabel:'ดื่มน้ำพร้อมอาหาร 250ml', waterMl:250 },
+    { time:'10:00', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'11:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'12:00', name:'ทำกับข้าวทานเที่ยง · 💧 ดื่มน้ำ', tag:'meal', water:true, waterMl:100 },
     { time:'13:00', name:'ดูทีวี / พักผ่อน', tag:'rest', water:false },
-    { time:'14:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงบ่าย 250ml', waterMl:250 },
-    { time:'16:00', name:'เตรียมขาย Smoky Bite', tag:'shop', water:true, waterLabel:'ดื่มน้ำก่อนขาย 250ml', waterMl:250 },
+    { time:'14:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
+    { time:'16:00', name:'เตรียมขาย Smoky Bite', tag:'shop', water:false },
     { time:'17:00', name:'ขาย Smoky Bite', tag:'shop', water:false },
-    { time:'19:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ระหว่างขาย 250ml', waterMl:250 },
+    { time:'19:00', name:'💧 ดื่มน้ำระหว่างขาย', tag:'water', water:true, waterMl:100 },
     { time:'20:30', name:'เก็บของ', tag:'shop', water:false },
     { time:'21:00', name:'อาบน้ำ', tag:'rest', water:false },
-    { time:'21:20', name:'ดูทีวี / พักผ่อน', tag:'rest', water:true, waterLabel:'ก่อนนอน 100ml', waterMl:100 },
+    { time:'21:20', name:'ดูทีวี / พักผ่อน', tag:'rest', water:false },
+    { time:'21:30', name:'💧 ดื่มน้ำก่อนนอน', tag:'water', water:true, waterMl:100 },
     { time:'22:00', name:'นอน', tag:'rest', water:false },
   ]
 };
@@ -915,6 +926,9 @@ function renderRoutine() {
     else if (isCurrent) cls += ' ri-current';
     else if (isPast) cls += ' ri-past';
 
+    const tagText = tagLabels[item.tag] || item.tag;
+    const mlBadge = item.water ? `<span class="ri-ml-badge">${item.waterMl} ml</span>` : '';
+
     return `
       <div class="${cls}" id="ritem-${i}" onclick="toggleRoutineItem(${i})">
         <div class="ri-time-col">
@@ -922,7 +936,7 @@ function renderRoutine() {
         </div>
         <div class="ri-body">
           <div class="ri-name">${item.name}</div>
-          <span class="ri-tag ${item.tag}">${tagLabels[item.tag]||item.tag}${item.water ? ` · 💧 ${item.waterMl}ml` : ''}</span>
+          <div class="ri-tags"><span class="ri-tag ${item.tag}">${tagText}</span>${mlBadge}</div>
         </div>
         <div class="ri-checkbox">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
