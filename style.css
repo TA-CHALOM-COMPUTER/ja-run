@@ -455,6 +455,15 @@ body {
 .water-title-row {
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
 }
+.notify-badge {
+  font-size: .72rem; font-family: 'Sarabun', sans-serif;
+  padding: 5px 12px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--border2); color: var(--text3);
+  background: var(--bg3); transition: .2s; user-select: none;
+}
+.notify-badge.on  { background: rgba(34,197,94,.12); border-color: var(--green); color: var(--green); }
+.notify-badge.off { background: rgba(239,68,68,.08);  border-color: var(--red);   color: var(--red); }
+
 .water-reset-btn {
   background: var(--bg3); border: 1px solid var(--border2);
   color: var(--text3); font-size: .72rem; font-family: 'Sarabun', sans-serif;

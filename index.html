@@ -234,7 +234,10 @@
       <div class="water-header">
         <div class="water-title-row">
           <h2 class="page-title" style="margin:0">💧 การดื่มน้ำวันนี้</h2>
-          <button class="water-reset-btn" onclick="resetWater()">รีเซ็ต</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="notify-badge" id="notifyBadge" onclick="toggleNotify()">🔔 แจ้งเตือน</div>
+            <button class="water-reset-btn" onclick="resetWater()">รีเซ็ต</button>
+          </div>
         </div>
         <div class="water-progress-wrap">
           <div class="water-total-row">

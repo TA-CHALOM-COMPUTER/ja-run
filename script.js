@@ -741,10 +741,89 @@ function getWaterKey() {
   return 'water_' + new Date().toISOString().slice(0,10);
 }
 
+let waterNotifyTimer = null;
+const waterNotified = {}; // track which indices already notified today
+
+function updateNotifyBadge() {
+  const badge = document.getElementById('notifyBadge');
+  if (!badge) return;
+  if (!('Notification' in window)) {
+    badge.textContent = '🔕 ไม่รองรับ'; badge.className = 'notify-badge off'; return;
+  }
+  if (Notification.permission === 'granted') {
+    badge.textContent = '🔔 แจ้งเตือน: เปิด'; badge.className = 'notify-badge on';
+  } else if (Notification.permission === 'denied') {
+    badge.textContent = '🔕 ถูกบล็อก'; badge.className = 'notify-badge off';
+  } else {
+    badge.textContent = '🔔 เปิดการแจ้งเตือน'; badge.className = 'notify-badge';
+  }
+}
+
+async function toggleNotify() {
+  if (Notification.permission === 'granted') {
+    // can't programmatically revoke — guide user
+    alert('ปิดการแจ้งเตือนได้ที่:\nการตั้งค่าเบราว์เซอร์ → การแจ้งเตือน → ปิดสำหรับเว็บไซต์นี้');
+    return;
+  }
+  const ok = await requestNotifyPermission();
+  if (ok) startWaterNotifyTimer();
+  updateNotifyBadge();
+}
+
+async function requestNotifyPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const result = await Notification.requestPermission();
+  return result === 'granted';
+}
+
+function startWaterNotifyTimer() {
+  if (waterNotifyTimer) clearInterval(waterNotifyTimer);
+  waterNotifyTimer = setInterval(checkWaterNotify, 30_000);
+  checkWaterNotify(); // check immediately on load
+}
+
+function checkWaterNotify() {
+  if (Notification.permission !== 'granted') return;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  WATER_SCHEDULE.forEach((w, i) => {
+    if (waterChecked[i]) return;          // already done
+    if (waterNotified[i]) return;         // already notified today
+
+    const [wh, wm] = w.time.split(':').map(Number);
+    const wMin = wh * 60 + wm;
+    const diff = wMin - nowMin;
+
+    if (diff >= 0 && diff <= 3) {
+      waterNotified[i] = true;
+      const label = w.label ? ` (${w.label})` : '';
+      const n = new Notification('💧 JA-RUN — ถึงเวลาดื่มน้ำแล้ว!', {
+        body: `${w.time}${label} — ${w.ml} ml อีก ${diff <= 0 ? 'ถึงเวลาแล้ว!' : diff + ' นาที'}`,
+        icon: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+        badge: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+        tag: 'water-' + i,
+        renotify: false,
+      });
+      n.onclick = () => {
+        window.focus();
+        document.querySelector('[data-tab="water"]')?.click();
+        n.close();
+      };
+    }
+  });
+}
+
 function loadWater() {
   waterDateKey = getWaterKey();
   const saved = localStorage.getItem(waterDateKey);
   waterChecked = saved ? JSON.parse(saved) : {};
+  requestNotifyPermission().then(ok => {
+    if (ok) startWaterNotifyTimer();
+    updateNotifyBadge();
+  });
   renderWater();
 }
 
