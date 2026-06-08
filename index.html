@@ -12,6 +12,23 @@
 </head>
 <body>
 
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <div class="login-logo">⚡</div>
+    <h1 class="login-title">JA-RUN</h1>
+    <p class="login-sub">จะวิ่ง...ก็ต้องวิ่งให้สุด</p>
+    <button id="googleSignInBtn" class="btn-google">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20" alt="Google">
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <p class="login-note">ข้อมูลการวิ่งจะถูกบันทึกและซิงค์ทุกอุปกรณ์</p>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="mainApp" style="display:none">
+
 <header>
   <div class="header-inner">
     <div class="logo">
@@ -21,11 +38,45 @@
         <p>จะวิ่ง...ก็ต้องวิ่งให้สุด</p>
       </div>
     </div>
-    <div class="header-badge" id="headerGoalBadge">
-      <span id="headerGoalText">ตั้งโกลก่อนวิ่ง</span>
+    <div class="header-right">
+      <div class="header-badge" id="headerGoalBadge">
+        <span id="headerGoalText">ตั้งโกลก่อนวิ่ง</span>
+      </div>
+      <div class="avatar-wrap" id="avatarWrap" onclick="toggleProfileMenu()">
+        <img id="userAvatar" src="" alt="avatar" class="user-avatar">
+      </div>
     </div>
   </div>
 </header>
+
+<!-- PROFILE DROPDOWN -->
+<div class="profile-menu" id="profileMenu">
+  <div class="profile-info">
+    <img id="menuAvatar" src="" alt="" class="menu-avatar">
+    <div>
+      <div class="menu-name" id="menuName">—</div>
+      <div class="menu-email" id="menuEmail">—</div>
+    </div>
+  </div>
+  <hr class="menu-divider">
+  <div class="menu-stats-row">
+    <div class="menu-stat">
+      <span class="ms-val" id="menuTotalDist">0</span>
+      <span class="ms-lbl">กม. รวม</span>
+    </div>
+    <div class="menu-stat">
+      <span class="ms-val" id="menuTotalRuns">0</span>
+      <span class="ms-lbl">ครั้ง</span>
+    </div>
+    <div class="menu-stat">
+      <span class="ms-val" id="menuTotalCals">0</span>
+      <span class="ms-lbl">kcal</span>
+    </div>
+  </div>
+  <hr class="menu-divider">
+  <button class="menu-signout" onclick="signOut()">🚪 ออกจากระบบ</button>
+</div>
+<div class="profile-overlay" id="profileOverlay" onclick="toggleProfileMenu()"></div>
 
 <!-- NAV TABS -->
 <nav class="tab-nav">
@@ -37,7 +88,6 @@
 
 <!-- ===== TAB: RUN ===== -->
 <div class="tab-content active" id="tab-run">
-
   <section class="dashboard">
     <div class="stat-card">
       <span class="stat-label">ระยะทาง</span>
@@ -71,7 +121,6 @@
     </div>
   </section>
 
-  <!-- Goal progress bar -->
   <div class="goal-progress-wrap" id="goalProgressWrap" style="display:none">
     <div class="goal-progress-header">
       <span id="goalProgressLabel">โกลวันนี้</span>
@@ -98,19 +147,16 @@
     <h2>ประวัติการวิ่ง</h2>
     <div id="historyList"></div>
   </section>
-
 </div>
 
 <!-- ===== TAB: PLAN ===== -->
 <div class="tab-content" id="tab-plan">
   <section class="section-wrap">
     <h2 class="section-title">📋 วางแผนการวิ่ง</h2>
-
     <div class="plan-card">
       <h3>เลือกโปรแกรมวิ่ง</h3>
       <div class="program-grid" id="programGrid"></div>
     </div>
-
     <div class="plan-card">
       <h3>กำหนดเป้าหมายรายสัปดาห์</h3>
       <div class="form-row">
@@ -140,12 +186,10 @@
       </div>
       <button class="btn-primary" onclick="savePlan()">บันทึกแผน</button>
     </div>
-
     <div class="plan-card">
       <h3>ตารางวิ่งสัปดาห์นี้</h3>
       <div id="weeklySchedule"></div>
     </div>
-
     <div class="plan-card">
       <h3>คำแนะนำก่อนวิ่ง</h3>
       <div class="tips-grid">
@@ -164,7 +208,6 @@
 <div class="tab-content" id="tab-stats">
   <section class="section-wrap">
     <h2 class="section-title">📊 สถิติการวิ่ง</h2>
-
     <div class="stats-summary-grid">
       <div class="summary-card">
         <span class="s-label">รวมระยะทาง</span>
@@ -197,17 +240,14 @@
         <span class="s-unit">นาที/กม.</span>
       </div>
     </div>
-
     <div class="plan-card">
       <h3>7 วันล่าสุด</h3>
       <div class="bar-chart" id="weekChart"></div>
     </div>
-
     <div class="plan-card">
       <h3>ประวัติทั้งหมด</h3>
       <div id="fullHistory"></div>
     </div>
-
   </section>
 </div>
 
@@ -215,52 +255,45 @@
 <div class="tab-content" id="tab-goal">
   <section class="section-wrap">
     <h2 class="section-title">🎯 ตั้งโกล</h2>
-
     <div class="plan-card">
       <h3>โกลประจำวัน</h3>
       <div class="goal-type-grid">
         <button class="goal-type-btn active" data-type="distance" onclick="selectGoalType('distance',this)">
-          <span class="gt-icon">📏</span>
-          <span>ระยะทาง</span>
+          <span class="gt-icon">📏</span><span>ระยะทาง</span>
         </button>
         <button class="goal-type-btn" data-type="time" onclick="selectGoalType('time',this)">
-          <span class="gt-icon">⏱</span>
-          <span>เวลา</span>
+          <span class="gt-icon">⏱</span><span>เวลา</span>
         </button>
         <button class="goal-type-btn" data-type="calories" onclick="selectGoalType('calories',this)">
-          <span class="gt-icon">🔥</span>
-          <span>แคลอรี่</span>
+          <span class="gt-icon">🔥</span><span>แคลอรี่</span>
         </button>
       </div>
-
       <div id="goalDistanceInput" class="goal-input-wrap">
         <label>เป้าหมายระยะทาง (กม.)</label>
-        <div class="stepper big-stepper">
+        <div class="big-stepper"><div class="stepper">
           <button onclick="changeGoal(-1)">−</button>
           <span id="goalDistVal">5</span>
           <button onclick="changeGoal(1)">+</button>
-        </div>
+        </div></div>
       </div>
       <div id="goalTimeInput" class="goal-input-wrap" style="display:none">
         <label>เป้าหมายเวลา (นาที)</label>
-        <div class="stepper big-stepper">
+        <div class="big-stepper"><div class="stepper">
           <button onclick="changeGoal(-5)">−</button>
           <span id="goalTimeVal">30</span>
           <button onclick="changeGoal(5)">+</button>
-        </div>
+        </div></div>
       </div>
       <div id="goalCalInput" class="goal-input-wrap" style="display:none">
         <label>เป้าหมายแคลอรี่ (kcal)</label>
-        <div class="stepper big-stepper">
+        <div class="big-stepper"><div class="stepper">
           <button onclick="changeGoal(-50)">−</button>
           <span id="goalCalVal">300</span>
           <button onclick="changeGoal(50)">+</button>
-        </div>
+        </div></div>
       </div>
-
       <button class="btn-primary" onclick="saveGoal()">✓ ตั้งโกล</button>
     </div>
-
     <div class="plan-card">
       <h3>ข้อมูลส่วนตัว (สำหรับคำนวณแคลอรี่)</h3>
       <div class="form-row">
@@ -288,15 +321,19 @@
       </div>
       <button class="btn-primary" onclick="saveBody()">บันทึกข้อมูล</button>
     </div>
-
     <div class="plan-card">
       <h3>โกลสะสม</h3>
       <div class="goal-milestones" id="goalMilestones"></div>
     </div>
-
   </section>
 </div>
 
+</div><!-- end mainApp -->
+
+<!-- Firebase SDKs (compat version — ไม่ต้อง bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
