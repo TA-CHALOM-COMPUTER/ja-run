@@ -131,25 +131,81 @@ function renderAll() {
 /* ============================================================
    TABS
    ============================================================ */
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const btn = document.querySelector(`.tab[data-tab="${tabName}"]`);
+  const page = document.getElementById('tab-' + tabName);
+  if (btn) btn.classList.add('active');
+  if (page) page.classList.add('active');
+  if (tabName === 'water')    loadWater();
+  if (tabName === 'calendar') loadCalendar();
+  if (tabName === 'routine')  loadRoutine();
+}
+
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'water')    loadWater();
-    if (btn.dataset.tab === 'calendar') loadCalendar();
+    switchTab(btn.dataset.tab);
   });
 });
 
 /* ============================================================
-   HOME
+   HOME (SUMMARY DASHBOARD)
    ============================================================ */
 function renderHome() {
+  // Greeting
+  const now = new Date();
+  const h = now.getHours();
+  const greet = h < 12 ? 'อรุณสวัสดิ์' : h < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+  const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const el = document.getElementById('summaryGreeting');
+  if (el) el.innerHTML = `${greet} 👋<br><span>${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()+543}</span>`;
+
   buildWeekStrip();
   buildQuickStats();
   renderGoalProgress();
   renderLastRun();
+  updateHomeSummaryWater();
+  updateHomeRoutineSummary();
+}
+
+function updateHomeSummaryWater() {
+  const key = 'water_' + new Date().toISOString().slice(0,10);
+  const saved = localStorage.getItem(key);
+  const checked = saved ? JSON.parse(saved) : {};
+  const total = WATER_SCHEDULE.reduce((a,w)=>a+w.ml,0);
+  const drank = WATER_SCHEDULE.reduce((a,w,i)=> checked[i] ? a+w.ml : a, 0);
+  const pct = Math.round((drank/total)*100);
+  const el = document.getElementById('homeWaterVal');
+  const el2 = document.getElementById('homeWaterGoal');
+  const bar = document.getElementById('homeWaterBar');
+  const pctEl = document.getElementById('homeWaterPct');
+  if (el) el.textContent = drank.toLocaleString();
+  if (el2) el2.textContent = total.toLocaleString();
+  if (bar) bar.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+}
+
+function updateHomeRoutineSummary() {
+  const isWeekend = [0,6].includes(new Date().getDay());
+  const dayKey = isWeekend ? 'weekend' : 'weekday';
+  const schedule = ROUTINE_SCHEDULE[dayKey];
+  const key = 'routine_' + dayKey + '_' + new Date().toISOString().slice(0,10);
+  const saved = localStorage.getItem(key);
+  const checked = saved ? JSON.parse(saved) : {};
+  const done = schedule.filter((_,i) => checked[i]).length;
+  const total = schedule.length;
+  const pct = total ? Math.round((done/total)*100) : 0;
+
+  const doneEl = document.getElementById('homeRoutineDone');
+  const totalEl = document.getElementById('homeRoutineTotal');
+  const pctEl = document.getElementById('homeRoutinePct');
+  const bar = document.getElementById('homeRoutineBar');
+  if (doneEl) doneEl.textContent = done;
+  if (totalEl) totalEl.textContent = total;
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (bar) bar.style.width = pct + '%';
 }
 
 function buildWeekStrip() {
@@ -201,9 +257,22 @@ function buildQuickStats() {
 }
 
 function renderGoalProgress() {
-  if (!goalData || !goalData.value) return;
   const box = document.getElementById('goalBox');
-  box.style.display = 'block';
+
+  if (!goalData || !goalData.value) {
+    if (box) box.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:14px;';
+    const gLabel = document.getElementById('gLabel');
+    if (gLabel) gLabel.textContent = 'ยังไม่ได้ตั้งโกล';
+    const gPct = document.getElementById('gPct');
+    if (gPct) gPct.textContent = '';
+    // Update goal status card
+    const gscVal = document.getElementById('gscValue');
+    if (gscVal) gscVal.textContent = 'ยังไม่ได้ตั้งโกล';
+    const gscWrap = document.getElementById('gscProgressWrap');
+    if (gscWrap) gscWrap.style.display = 'none';
+    return;
+  }
+  if (box) box.style.cssText = '';
 
   const today = new Date().toISOString().slice(0,10);
   const todayRuns = allRuns.filter(r => r.date === today);
@@ -225,6 +294,16 @@ function renderGoalProgress() {
   document.getElementById('gPct').textContent    = pct + '%';
   document.getElementById('gFill').style.width   = pct + '%';
   document.getElementById('gDetail').textContent = `${current.toFixed(goalData.type==='distance'?1:0)} / ${goalData.value} ${unit}`;
+
+  // Update goal status card in goal tab
+  const gscVal = document.getElementById('gscValue');
+  if (gscVal) gscVal.textContent = `${goalData.value} ${unit}/วัน · ${pct}%`;
+  const gscFill = document.getElementById('gscFill');
+  if (gscFill) gscFill.style.width = pct + '%';
+  const gscDetail = document.getElementById('gscDetail');
+  if (gscDetail) gscDetail.textContent = `วิ่งแล้ว ${current.toFixed(goalData.type==='distance'?1:0)} ${unit} จาก ${goalData.value} ${unit}`;
+  const gscWrap = document.getElementById('gscProgressWrap');
+  if (gscWrap) gscWrap.style.display = 'block';
 }
 
 function renderLastRun() {
@@ -583,7 +662,10 @@ async function saveGoal() {
   await fsSet('goal', goalData);
   updateHeaderGoal();
   renderGoalProgress();
-  alert('✅ บันทึกโกลแล้ว!');
+
+  // Show toast-style feedback
+  const btn = document.querySelector('#tab-goal .btn-primary');
+  if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✅ บันทึกแล้ว!'; setTimeout(()=>{btn.innerHTML=orig;},1500); }
 }
 
 function updateHeaderGoal() {
@@ -718,6 +800,138 @@ ${recent3 || 'ยังไม่มีข้อมูล'}
     btn.innerHTML = '🔄 วิเคราะห์ใหม่';
     btn.disabled = false;
   }
+}
+
+/* ============================================================
+   ROUTINE TAB
+   ============================================================ */
+const ROUTINE_SCHEDULE = {
+  weekday: [
+    { time:'05:55', name:'ตื่นนอน', tag:'rest', water:false },
+    { time:'06:00', name:'วิ่งออกกำลังกาย', tag:'run', water:true, waterLabel:'ดื่มน้ำก่อนวิ่ง 500ml', waterMl:500 },
+    { time:'06:55', name:'ดื่มน้ำหลังวิ่ง', tag:'water', water:true, waterLabel:'หลังวิ่ง 500ml', waterMl:500 },
+    { time:'07:00', name:'ทำกับข้าวทานเช้า', tag:'meal', water:false },
+    { time:'07:25', name:'ออกมาทำงาน', tag:'work', water:false },
+    { time:'08:00', name:'เริ่มทำงาน', tag:'work', water:true, waterLabel:'ดื่มน้ำช่วงเช้า 250ml', waterMl:250 },
+    { time:'09:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงเช้า 250ml', waterMl:250 },
+    { time:'10:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเที่ยง 250ml', waterMl:250 },
+    { time:'12:00', name:'ทานข้าวเที่ยง', tag:'meal', water:true, waterLabel:'ดื่มน้ำพร้อมอาหาร 250ml', waterMl:250 },
+    { time:'13:00', name:'ทำงานต่อ', tag:'work', water:false },
+    { time:'13:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงบ่าย 250ml', waterMl:250 },
+    { time:'15:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'บ่ายแก่ 250ml', waterMl:250 },
+    { time:'16:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเลิกงาน 250ml', waterMl:250 },
+    { time:'17:00', name:'เลิกงาน', tag:'work', water:false },
+    { time:'18:00', name:'ฝึกเล่นพิณ', tag:'music', water:true, waterLabel:'ดื่มน้ำ 250ml', waterMl:250 },
+    { time:'20:00', name:'อาบน้ำ', tag:'rest', water:false },
+    { time:'20:20', name:'Update ร้าน com / หาเงิน Online', tag:'work', water:false },
+    { time:'21:00', name:'ดื่มน้ำก่อนนอน', tag:'water', water:true, waterLabel:'ก่อนนอน 100ml', waterMl:100 },
+    { time:'22:00', name:'นอน', tag:'rest', water:false },
+  ],
+  weekend: [
+    { time:'08:00', name:'ตื่นนอน', tag:'rest', water:true, waterLabel:'ดื่มน้ำหลังตื่น 500ml', waterMl:500 },
+    { time:'09:00', name:'ถูบ้าน / ล้างห้องน้ำ', tag:'rest', water:false },
+    { time:'10:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงเช้า 250ml', waterMl:250 },
+    { time:'11:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ก่อนเที่ยง 250ml', waterMl:250 },
+    { time:'12:00', name:'ทำกับข้าวทานเที่ยง', tag:'meal', water:true, waterLabel:'ดื่มน้ำพร้อมอาหาร 250ml', waterMl:250 },
+    { time:'13:00', name:'ดูทีวี / พักผ่อน', tag:'rest', water:false },
+    { time:'14:30', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ช่วงบ่าย 250ml', waterMl:250 },
+    { time:'16:00', name:'เตรียมขาย Smoky Bite', tag:'shop', water:true, waterLabel:'ดื่มน้ำก่อนขาย 250ml', waterMl:250 },
+    { time:'17:00', name:'ขาย Smoky Bite', tag:'shop', water:false },
+    { time:'19:00', name:'ดื่มน้ำ', tag:'water', water:true, waterLabel:'ระหว่างขาย 250ml', waterMl:250 },
+    { time:'20:30', name:'เก็บของ', tag:'shop', water:false },
+    { time:'21:00', name:'อาบน้ำ', tag:'rest', water:false },
+    { time:'21:20', name:'ดูทีวี / พักผ่อน', tag:'rest', water:true, waterLabel:'ก่อนนอน 100ml', waterMl:100 },
+    { time:'22:00', name:'นอน', tag:'rest', water:false },
+  ]
+};
+
+let currentRoutineDay = null; // 'weekday' | 'weekend'
+let routineChecked = {};
+
+function getRoutineKey(dayType) {
+  return 'routine_' + dayType + '_' + new Date().toISOString().slice(0,10);
+}
+
+function loadRoutine() {
+  const isWeekend = [0,6].includes(new Date().getDay());
+  currentRoutineDay = isWeekend ? 'weekend' : 'weekday';
+  // Set toggle button
+  document.getElementById('rdtWeekday').classList.toggle('active', currentRoutineDay === 'weekday');
+  document.getElementById('rdtWeekend').classList.toggle('active', currentRoutineDay === 'weekend');
+  const saved = localStorage.getItem(getRoutineKey(currentRoutineDay));
+  routineChecked = saved ? JSON.parse(saved) : {};
+  renderRoutine();
+}
+
+function switchRoutineDay(day, el) {
+  currentRoutineDay = day;
+  document.querySelectorAll('.rdt-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const saved = localStorage.getItem(getRoutineKey(day));
+  routineChecked = saved ? JSON.parse(saved) : {};
+  renderRoutine();
+}
+
+function toggleRoutineItem(idx) {
+  routineChecked[idx] = !routineChecked[idx];
+  localStorage.setItem(getRoutineKey(currentRoutineDay), JSON.stringify(routineChecked));
+  renderRoutine();
+  updateHomeRoutineSummary();
+  const row = document.getElementById('ritem-' + idx);
+  if (row && routineChecked[idx]) { row.classList.add('ri-flash'); setTimeout(()=>row.classList.remove('ri-flash'),600); }
+}
+
+function resetRoutine() {
+  if (!confirm('รีเซ็ตกิจวัตรวันนี้?')) return;
+  routineChecked = {};
+  localStorage.removeItem(getRoutineKey(currentRoutineDay));
+  renderRoutine();
+  updateHomeRoutineSummary();
+}
+
+function renderRoutine() {
+  const schedule = ROUTINE_SCHEDULE[currentRoutineDay];
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const done = schedule.filter((_,i) => routineChecked[i]).length;
+  const total = schedule.length;
+  const pct = total ? Math.round((done/total)*100) : 0;
+
+  document.getElementById('routinePct').textContent = pct + '%';
+  document.getElementById('routineBarFill').style.width = pct + '%';
+  document.getElementById('routineProgCounts').textContent = `${done} / ${total} รายการเสร็จแล้ว`;
+
+  const tagLabels = { water:'💧 น้ำ', run:'🏃 วิ่ง', work:'💼 งาน', music:'🎵 พิณ', rest:'🌿 พัก', meal:'🍽 อาหาร', shop:'🔥 Smoky Bite' };
+
+  document.getElementById('routineList').innerHTML = schedule.map((item, i) => {
+    const [wh, wm] = item.time.split(':').map(Number);
+    const itemMin = wh * 60 + wm;
+    const isDone = !!routineChecked[i];
+    const isPast = nowMin > itemMin + 30;
+    const isCurrent = !isDone && nowMin >= itemMin - 5 && nowMin <= itemMin + 60;
+
+    let cls = 'routine-item';
+    if (isDone) cls += ' ri-done';
+    else if (isCurrent) cls += ' ri-current';
+    else if (isPast) cls += ' ri-past';
+
+    return `
+      <div class="${cls}" id="ritem-${i}" onclick="toggleRoutineItem(${i})">
+        <div class="ri-time-col">
+          <span class="ri-time">${item.time}</span>
+        </div>
+        <div class="ri-body">
+          <div class="ri-name">${item.name}</div>
+          <span class="ri-tag ${item.tag}">${tagLabels[item.tag]||item.tag}${item.water ? ` · 💧 ${item.waterMl}ml` : ''}</span>
+        </div>
+        <div class="ri-checkbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 /* ============================================================

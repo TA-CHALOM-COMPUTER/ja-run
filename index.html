@@ -70,7 +70,8 @@
   <!-- NAV -->
   <nav class="tabs">
     <button class="tab active" data-tab="home">🏠 หน้าแรก</button>
-    <button class="tab" data-tab="history">📋 ประวัติ</button>
+    <button class="tab" data-tab="routine">📋 กิจวัตร</button>
+    <button class="tab" data-tab="history">🗂 ประวัติ</button>
     <button class="tab" data-tab="stats">📊 สถิติ</button>
     <button class="tab" data-tab="goal">🎯 โกล</button>
     <button class="tab" data-tab="water">💧 น้ำ</button>
@@ -78,14 +79,45 @@
 
   </nav>
 
-  <!-- ===== HOME ===== -->
+  <!-- ===== HOME (SUMMARY DASHBOARD) ===== -->
   <div class="page active" id="tab-home">
     <div class="page-inner">
 
-      <!-- weekly strip -->
-      <div class="week-strip" id="weekStrip"></div>
+      <!-- Greeting + date -->
+      <div class="summary-greeting" id="summaryGreeting"></div>
 
-      <!-- quick stats -->
+      <!-- Today's Goal Progress -->
+      <div class="summary-section-title">🎯 โกลวันนี้</div>
+      <div class="goal-box" id="goalBox">
+        <div class="goal-box-top">
+          <span class="goal-box-label" id="gLabel">ยังไม่ได้ตั้งโกล</span>
+          <span class="goal-box-pct" id="gPct">0%</span>
+        </div>
+        <div class="goal-bar-bg">
+          <div class="goal-bar-fill" id="gFill" style="width:0%"></div>
+        </div>
+        <div class="goal-box-detail" id="gDetail"></div>
+      </div>
+
+      <!-- Water Summary -->
+      <div class="summary-section-title">💧 น้ำวันนี้</div>
+      <div class="summary-water-card" onclick="switchTab('water')">
+        <div class="swc-left">
+          <div class="swc-val" id="homeWaterVal">0</div>
+          <div class="swc-unit">/ <span id="homeWaterGoal">0</span> ml</div>
+        </div>
+        <div class="swc-bar-wrap">
+          <div class="swc-bar-bg">
+            <div class="swc-bar-fill" id="homeWaterBar" style="width:0%"></div>
+          </div>
+          <div class="swc-pct" id="homeWaterPct">0%</div>
+        </div>
+        <div class="swc-arrow">›</div>
+      </div>
+
+      <!-- Weekly Running Stats -->
+      <div class="summary-section-title">🏃 การวิ่งสัปดาห์นี้</div>
+      <div class="week-strip" id="weekStrip"></div>
       <div class="qs-grid">
         <div class="qs-card accent">
           <div class="qs-val" id="qs-dist">0.0</div>
@@ -105,21 +137,20 @@
         </div>
       </div>
 
-      <!-- goal progress -->
-      <div class="goal-box" id="goalBox" style="display:none">
-        <div class="goal-box-top">
-          <span class="goal-box-label" id="gLabel">โกลวันนี้</span>
-          <span class="goal-box-pct" id="gPct">0%</span>
+      <!-- Today's Routine Progress -->
+      <div class="summary-section-title">📋 กิจวัตรวันนี้</div>
+      <div class="summary-routine-card" id="homeRoutineCard" onclick="switchTab('routine')">
+        <div class="src-progress">
+          <div class="src-counts"><span id="homeRoutineDone">0</span>/<span id="homeRoutineTotal">0</span> รายการ</div>
+          <div class="src-pct" id="homeRoutinePct">0%</div>
         </div>
-        <div class="goal-bar-bg">
-          <div class="goal-bar-fill" id="gFill" style="width:0%"></div>
-        </div>
-        <div class="goal-box-detail" id="gDetail"></div>
+        <div class="src-bar-bg"><div class="src-bar-fill" id="homeRoutineBar" style="width:0%"></div></div>
+        <div class="src-hint">แตะเพื่อดูกิจวัตรประจำวัน ›</div>
       </div>
 
-      <!-- last run -->
+      <!-- Last run -->
       <div class="last-run-wrap" id="lastRunWrap" style="display:none">
-        <h3 class="section-label">การวิ่งล่าสุด</h3>
+        <div class="summary-section-title">🏅 การวิ่งล่าสุด</div>
         <div class="last-run-card" id="lastRunCard"></div>
       </div>
 
@@ -133,6 +164,35 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ===== ROUTINE ===== -->
+  <div class="page" id="tab-routine">
+    <div class="page-inner">
+      <div class="routine-header">
+        <h2 class="page-title" style="margin:0">📋 กิจวัตรประจำวัน</h2>
+        <div class="routine-day-toggle">
+          <button class="rdt-btn active" id="rdtWeekday" onclick="switchRoutineDay('weekday',this)">จ-ศ</button>
+          <button class="rdt-btn" id="rdtWeekend" onclick="switchRoutineDay('weekend',this)">ส-อา</button>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="routine-progress-wrap">
+        <div class="routine-progress-top">
+          <span class="routine-prog-label">ความคืบหน้าวันนี้</span>
+          <span class="routine-prog-pct" id="routinePct">0%</span>
+        </div>
+        <div class="routine-prog-bar-bg">
+          <div class="routine-prog-bar-fill" id="routineBarFill" style="width:0%"></div>
+        </div>
+        <div class="routine-prog-counts" id="routineProgCounts">0 / 0 รายการ</div>
+      </div>
+
+      <div id="routineList"></div>
+
+      <button class="btn-ghost routine-reset-btn" onclick="resetRoutine()">🔄 รีเซ็ตวันนี้</button>
     </div>
   </div>
 
@@ -179,10 +239,22 @@
   <!-- ===== GOAL ===== -->
   <div class="page" id="tab-goal">
     <div class="page-inner">
-      <h2 class="page-title">ตั้งโกล</h2>
+      <h2 class="page-title">🎯 ตั้งโกล</h2>
+
+      <!-- Current Goal Status Card -->
+      <div class="goal-status-card" id="goalStatusCard">
+        <div class="gsc-title">โกลปัจจุบัน</div>
+        <div class="gsc-value" id="gscValue">ยังไม่ได้ตั้งโกล</div>
+        <div class="gsc-progress-wrap" id="gscProgressWrap" style="display:none">
+          <div class="gsc-prog-bar-bg">
+            <div class="gsc-prog-bar-fill" id="gscFill" style="width:0%"></div>
+          </div>
+          <div class="gsc-prog-detail" id="gscDetail"></div>
+        </div>
+      </div>
 
       <div class="card">
-        <h3>โกลประจำวัน</h3>
+        <h3>ตั้งโกลประจำวัน</h3>
         <div class="goal-type-row">
           <button class="gt-btn active" data-gt="distance" onclick="setGoalType('distance',this)"><span>📏</span>ระยะทาง</button>
           <button class="gt-btn" data-gt="time" onclick="setGoalType('time',this)"><span>⏱</span>เวลา</button>
