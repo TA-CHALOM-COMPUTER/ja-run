@@ -74,6 +74,7 @@
     <button class="tab" data-tab="stats">📊 สถิติ</button>
     <button class="tab" data-tab="goal">🎯 โกล</button>
     <button class="tab" data-tab="water">💧 น้ำ</button>
+    <button class="tab" data-tab="calendar">📅 ปฏิทิน</button>
 
   </nav>
 
@@ -275,6 +276,50 @@
       <div class="water-note-card">
         <span>💡</span>
         <p>ดื่มน้ำสะอาดอุณหภูมิห้อง หลีกเลี่ยงเครื่องดื่มที่มีน้ำตาลสูง ร่างกายต้องการน้ำ 30–35 ml/น้ำหนักตัว 1 กก. ต่อวัน</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== CALENDAR ===== -->
+  <div class="page" id="tab-calendar">
+    <div class="page-inner">
+
+      <!-- month navigator -->
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calPrevMonth()">‹</button>
+        <div class="cal-month-label" id="calMonthLabel">—</div>
+        <button class="cal-nav-btn" onclick="calNextMonth()">›</button>
+      </div>
+
+      <!-- month summary chips -->
+      <div class="cal-summary" id="calSummary"></div>
+
+      <!-- calendar grid -->
+      <div class="cal-card">
+        <div class="cal-dow-row">
+          <span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+
+      <!-- selected day detail -->
+      <div class="cal-detail" id="calDetail" style="display:none">
+        <div class="cal-detail-header">
+          <span class="cal-detail-date" id="calDetailDate">—</span>
+          <button class="cal-detail-close" onclick="closeCalDetail()">✕</button>
+        </div>
+        <div id="calDetailBody"></div>
+      </div>
+
+      <!-- monthly heatmap legend -->
+      <div class="cal-legend">
+        <span class="cl-label">ระยะทาง:</span>
+        <div class="cl-item cl-0"></div><span>ไม่ได้วิ่ง</span>
+        <div class="cl-item cl-1"></div><span>&lt;3 กม.</span>
+        <div class="cl-item cl-2"></div><span>3–6 กม.</span>
+        <div class="cl-item cl-3"></div><span>6–10 กม.</span>
+        <div class="cl-item cl-4"></div><span>&gt;10 กม.</span>
       </div>
 
     </div>

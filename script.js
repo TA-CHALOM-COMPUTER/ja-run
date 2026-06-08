@@ -137,7 +137,8 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'water') loadWater();
+    if (btn.dataset.tab === 'water')    loadWater();
+    if (btn.dataset.tab === 'calendar') loadCalendar();
   });
 });
 
@@ -723,15 +724,17 @@ ${recent3 || 'ยังไม่มีข้อมูล'}
    WATER TAB
    ============================================================ */
 const WATER_SCHEDULE = [
-  { time: '05:55', label: 'หลังตื่นนอน',         ml: 500 },
-  { time: '09:00', label: '',                      ml: 250 },
-  { time: '10:30', label: '',                      ml: 250 },
-  { time: '12:00', label: 'ก่อนอาหารกลางวัน',    ml: 250 },
-  { time: '13:30', label: 'หลังอาหารกลางวัน',    ml: 250 },
-  { time: '15:00', label: '',                      ml: 250 },
-  { time: '16:30', label: '',                      ml: 250 },
-  { time: '18:00', label: 'ก่อนอาหารเย็น',       ml: 250 },
-  { time: '19:00', label: '',                      ml: 250 },
+  { time: '05:55', label: 'หลังตื่นนอน',  ml: 500 },
+  { time: '06:55', label: 'หลังวิ่ง',     ml: 500 },
+  { time: '08:00', label: 'ทานข้าว',      ml: 250 },
+  { time: '09:00', label: '',             ml: 250 },
+  { time: '10:30', label: '',             ml: 250 },
+  { time: '12:00', label: '',             ml: 250 },
+  { time: '13:30', label: '',             ml: 250 },
+  { time: '15:00', label: '',             ml: 250 },
+  { time: '16:30', label: '',             ml: 250 },
+  { time: '18:00', label: '',             ml: 250 },
+  { time: '21:00', label: '',             ml: 100 },
 ];
 
 let waterChecked = {};
@@ -912,6 +915,191 @@ function renderWater() {
       </div>
     `;
   }).join('');
+}
+
+/* ============================================================
+   CALENDAR TAB
+   ============================================================ */
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+let calSelectedDate = null;
+
+const CAL_MONTHS_TH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                       'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+function loadCalendar() {
+  renderCalendar();
+}
+
+function calPrevMonth() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  calSelectedDate = null;
+  renderCalendar();
+}
+
+function calNextMonth() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  calSelectedDate = null;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const today     = new Date();
+  const todayStr  = today.toISOString().slice(0, 10);
+
+  // ---- month label ----
+  document.getElementById('calMonthLabel').textContent =
+    `${CAL_MONTHS_TH[calMonth]} ${calYear + 543}`;
+
+  // ---- build runMap for this month ----
+  const prefix = `${calYear}-${String(calMonth + 1).padStart(2,'0')}-`;
+  const monthRuns = allRuns.filter(r => r.date && r.date.startsWith(prefix));
+
+  const runMap = {}; // dateStr → { dist, runs[], cals }
+  allRuns.forEach(r => {
+    if (!r.date) return;
+    if (!runMap[r.date]) runMap[r.date] = { dist: 0, runs: [], cals: 0 };
+    runMap[r.date].dist += r.distance || 0;
+    runMap[r.date].cals += r.calories || 0;
+    runMap[r.date].runs.push(r);
+  });
+
+  // ---- month summary ----
+  const mDist  = monthRuns.reduce((a,r) => a + (r.distance||0), 0);
+  const mCals  = monthRuns.reduce((a,r) => a + (r.calories||0), 0);
+  const mDays  = new Set(monthRuns.map(r => r.date)).size;
+  const mPaces = monthRuns.filter(r => r.pace && r.pace !== '--:--').map(r => paceToMin(r.pace));
+  const mAvgPace = mPaces.length ? minToDisplay(mPaces.reduce((a,b)=>a+b,0)/mPaces.length) : '--:--';
+
+  document.getElementById('calSummary').innerHTML = `
+    <div class="cs-chip"><span>${mDist.toFixed(1)}</span><small>กม.</small></div>
+    <div class="cs-chip"><span>${mDays}</span><small>วัน</small></div>
+    <div class="cs-chip"><span>${monthRuns.length}</span><small>ครั้ง</small></div>
+    <div class="cs-chip"><span>${Math.round(mCals)}</span><small>kcal</small></div>
+    <div class="cs-chip"><span>${mAvgPace}</span><small>pace เฉลี่ย</small></div>
+  `;
+
+  // ---- grid ----
+  const firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const daysInPrev  = new Date(calYear, calMonth, 0).getDate();
+
+  let cells = '';
+
+  // prev month filler
+  for (let i = 0; i < firstDay; i++) {
+    const d = daysInPrev - firstDay + 1 + i;
+    cells += `<div class="cal-cell filler"><span class="cc-day">${d}</span></div>`;
+  }
+
+  // current month days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const rd      = runMap[dateStr];
+    const dist    = rd ? rd.dist : 0;
+    const isToday = dateStr === todayStr;
+    const isSel   = dateStr === calSelectedDate;
+    const heat    = dist === 0 ? 0 : dist < 3 ? 1 : dist < 6 ? 2 : dist < 10 ? 3 : 4;
+
+    cells += `
+      <div class="cal-cell hl-${heat}${isToday ? ' is-today' : ''}${isSel ? ' is-sel' : ''}"
+           onclick="selectCalDay('${dateStr}')">
+        <span class="cc-day">${d}</span>
+        ${dist > 0 ? `<span class="cc-dist">${dist.toFixed(1)}</span>` : ''}
+        ${rd && rd.runs.length > 1 ? `<span class="cc-multi">${rd.runs.length}</span>` : ''}
+      </div>`;
+  }
+
+  // next month filler
+  const total = firstDay + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= remaining; i++) {
+    cells += `<div class="cal-cell filler"><span class="cc-day">${i}</span></div>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = cells;
+
+  // re-render detail if selected
+  if (calSelectedDate) renderCalDetail(calSelectedDate, runMap[calSelectedDate]);
+  else document.getElementById('calDetail').style.display = 'none';
+}
+
+function selectCalDay(dateStr) {
+  if (calSelectedDate === dateStr) {
+    calSelectedDate = null;
+    document.getElementById('calDetail').style.display = 'none';
+    renderCalendar();
+    return;
+  }
+  calSelectedDate = dateStr;
+  renderCalendar();
+  const rd = buildRunMapForDate(dateStr);
+  renderCalDetail(dateStr, rd);
+}
+
+function buildRunMapForDate(dateStr) {
+  const runs = allRuns.filter(r => r.date === dateStr);
+  if (!runs.length) return null;
+  return {
+    dist: runs.reduce((a,r)=>a+(r.distance||0),0),
+    cals: runs.reduce((a,r)=>a+(r.calories||0),0),
+    runs
+  };
+}
+
+function renderCalDetail(dateStr, rd) {
+  const detail = document.getElementById('calDetail');
+  const dateLabel = formatDate(dateStr);
+  document.getElementById('calDetailDate').textContent = dateLabel;
+
+  const body = document.getElementById('calDetailBody');
+
+  if (!rd) {
+    body.innerHTML = `<div class="cal-rest-day">
+      <span>😴</span>
+      <p>วันพัก — ไม่มีข้อมูลการวิ่ง</p>
+    </div>`;
+    detail.style.display = 'block';
+    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  const feelEmoji = ['','😫','😕','😊','😄','🔥'];
+
+  body.innerHTML = `
+    <div class="cal-day-stats">
+      <div class="cds-chip accent"><span>${rd.dist.toFixed(2)}</span><small>กม. รวม</small></div>
+      <div class="cds-chip"><span>${rd.runs.length}</span><small>ครั้ง</small></div>
+      <div class="cds-chip"><span>${Math.round(rd.cals)}</span><small>kcal</small></div>
+    </div>
+    ${rd.runs.map((r,i) => `
+      <div class="cal-run-row">
+        <div class="crr-top">
+          <span class="crr-idx">#${i+1}</span>
+          <span class="crr-dist">${r.distance} กม.</span>
+          <span class="crr-feel">${feelEmoji[r.feeling||3]}</span>
+        </div>
+        <div class="crr-stats">
+          <span>⏱ ${r.duration} น.</span>
+          <span>⚡ ${r.pace||'--:--'}/กม.</span>
+          <span>🔥 ${Math.round(r.calories||0)} kcal</span>
+          ${r.heartRate ? `<span>❤️ ${r.heartRate} bpm</span>` : ''}
+        </div>
+        ${r.note ? `<div class="crr-note">📝 ${r.note}</div>` : ''}
+      </div>
+    `).join('')}
+  `;
+
+  detail.style.display = 'block';
+  setTimeout(() => detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+}
+
+function closeCalDetail() {
+  calSelectedDate = null;
+  document.getElementById('calDetail').style.display = 'none';
+  renderCalendar();
 }
 
 /* ============================================================
