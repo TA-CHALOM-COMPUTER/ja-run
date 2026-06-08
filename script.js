@@ -117,7 +117,6 @@ async function loadAll() {
 
   renderAll();
   buildPrograms();
-  buildTips();
 }
 
 function renderAll() {
@@ -632,91 +631,7 @@ function buildPrograms() {
   `).join('');
 }
 
-/* ============================================================
-   TIPS
-   ============================================================ */
-const TIPS = [
-  { icon:'💧', title:'ดื่มน้ำก่อนวิ่ง', body:'500ml ก่อนออกวิ่ง 30 นาที และระหว่างวิ่งทุก 20 นาที' },
-  { icon:'🧘', title:'วอร์มอัพ 5-10 นาที', body:'ยืดกล้ามเนื้อและเดินเร็วก่อนเพิ่มความเร็ว' },
-  { icon:'🌡️', title:'เวลาที่เหมาะ', body:'เช้าตรู่ 05:00-07:00 หรือเย็น 17:00-19:00 หลีกเลี่ยง 10-16 น.' },
-  { icon:'👟', title:'เลือกรองเท้าดี', body:'เปลี่ยนรองเท้าทุก 500-800 กม. เพื่อป้องกันบาดเจ็บ' },
-  { icon:'📈', title:'เพิ่มระยะค่อยๆ', body:'เพิ่มระยะรายสัปดาห์ไม่เกิน 10% ป้องกัน overtraining' },
-  { icon:'😴', title:'พักให้เพียงพอ', body:'นอน 7-9 ชั่วโมง ร่างกายซ่อมแซมตัวเองขณะหลับ' },
-];
 
-function buildTips() {
-  document.getElementById('tipsGrid').innerHTML = TIPS.map(t => `
-    <div class="tip-card">
-      <strong>${t.icon} ${t.title}</strong>
-      ${t.body}
-    </div>
-  `).join('');
-}
-
-/* ============================================================
-   AI ANALYSIS
-   ============================================================ */
-async function runAI() {
-  const btn = document.getElementById('aiAnalyzeBtn');
-  btn.innerHTML = '<span class="spin"></span> กำลังวิเคราะห์...';
-  btn.disabled = true;
-
-  const result = document.getElementById('aiResult');
-  const textEl = document.getElementById('aiText');
-  result.style.display = 'none';
-
-  // Build summary for AI
-  const totalDist = allRuns.reduce((a,r) => a+(r.distance||0), 0).toFixed(1);
-  const totalRuns = allRuns.length;
-  const now = new Date();
-  const monday = new Date(now); monday.setDate(now.getDate()-now.getDay()+1); monday.setHours(0,0,0,0);
-  const weekRuns = allRuns.filter(r => new Date(r.date) >= monday);
-  const weekDist = weekRuns.reduce((a,r)=>a+(r.distance||0),0).toFixed(1);
-  const paces = allRuns.filter(r=>r.pace&&r.pace!=='--:--').map(r=>paceToMin(r.pace));
-  const avgPace = paces.length ? minToDisplay(paces.reduce((a,b)=>a+b,0)/paces.length) : 'ไม่มีข้อมูล';
-  const feelings = allRuns.map(r=>r.feeling||3);
-  const avgFeeling = feelings.length ? (feelings.reduce((a,b)=>a+b,0)/feelings.length).toFixed(1) : 3;
-  const recent3 = allRuns.slice(0,3).map(r=>`${r.date}: ${r.distance}กม. ${r.duration}นาที pace ${r.pace||'--'}`).join('\n');
-
-  const prompt = `คุณเป็นโค้ชวิ่งผู้เชี่ยวชาญชาวไทย วิเคราะห์ข้อมูลการวิ่งนี้และให้คำแนะนำเป็นภาษาไทย เป็นกันเอง กระชับ:
-
-ข้อมูลนักวิ่ง:
-- น้ำหนัก: ${bodyData.weight} กก. | อายุ: ${bodyData.age} ปี | เพศ: ${bodyData.gender==='male'?'ชาย':'หญิง'}
-- โกล: ${goalData.type==='distance'?goalData.value+' กม./วัน':goalData.type==='time'?goalData.value+' นาที/วัน':goalData.value+' kcal/วัน'}
-
-สถิติ:
-- วิ่งทั้งหมด: ${totalRuns} ครั้ง รวม ${totalDist} กม.
-- สัปดาห์นี้: ${weekRuns.length} ครั้ง รวม ${weekDist} กม.
-- Pace เฉลี่ย: ${avgPace}
-- ความรู้สึกเฉลี่ย: ${avgFeeling}/5
-
-3 การวิ่งล่าสุด:
-${recent3 || 'ยังไม่มีข้อมูล'}
-
-ให้คำแนะนำ 3-4 ข้อ ครอบคลุม: ความก้าวหน้า, จุดที่ต้องพัฒนา, เป้าหมายสัปดาห์หน้า ใช้ emoji ประกอบ`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.map(c => c.text||'').join('') || 'ไม่สามารถวิเคราะห์ได้';
-    textEl.textContent = text;
-    result.style.display = 'block';
-  } catch(e) {
-    textEl.textContent = '❌ เชื่อมต่อ AI ไม่สำเร็จ กรุณาลองใหม่';
-    result.style.display = 'block';
-  } finally {
-    btn.innerHTML = '🔄 วิเคราะห์ใหม่';
-    btn.disabled = false;
-  }
-}
 
 /* ============================================================
    HELPERS
