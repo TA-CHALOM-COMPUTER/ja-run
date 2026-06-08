@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ja-Run</title>
+
+<link rel="stylesheet" href="style.css">
+
+<link
+rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+</head>
+<body>
+
+<header>
+    <h1>🏃 JA-RUN</h1>
+    <p>จะวิ่ง...ก็ต้องวิ่งให้สุด</p>
+</header>
+
+<section class="dashboard">
+
+    <div class="stat-card">
+        <span>ระยะทาง</span>
+        <h2 id="distance">0.00</h2>
+        <small>กิโลเมตร</small>
+    </div>
+
+    <div class="stat-card">
+        <span>เวลา</span>
+        <h2 id="duration">00:00</h2>
+        <small>นาที</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Pace</span>
+        <h2 id="pace">0.00</h2>
+        <small>นาที/กม.</small>
+    </div>
+
+</section>
+
+<section class="controls">
+
+    <button id="startBtn">
+        ▶ เริ่มวิ่ง
+    </button>
+
+    <button id="stopBtn">
+        ■ หยุด
+    </button>
+
+    <button id="saveBtn">
+        💾 บันทึก
+    </button>
+
+</section>
+
+<section class="map-section">
+    <div id="map"></div>
+</section>
+
+<section class="history">
+
+    <h2>ประวัติการวิ่ง</h2>
+
+    <div id="historyList"></div>
+
+</section>
+
+<script src="script.js"></script>
+
+</body>
+</html>
