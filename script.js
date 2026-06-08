@@ -20,8 +20,12 @@ const db   = firebase.firestore();
 let currentUser = null;
 let allRuns     = [];
 let bodyData    = { weight: 65, age: 30, gender: 'male' };
-let goalData    = { type: 'distance', value: 5 };
+let goalData       = { type: 'distance', value: 5 };
+let weeklyGoalData = { type: 'distance', value: 30 };
+let monthlyGoalData= { type: 'distance', value: 100 };
 let currentGoalType = 'distance';
+let currentWeeklyGoalType  = 'distance';
+let currentMonthlyGoalType = 'distance';
 let currentFeeling  = 3;
 let deleteTarget    = null;
 let historyFilter   = 'all';
@@ -109,6 +113,26 @@ async function loadAll() {
     if (g.type === 'distance') document.getElementById('gv-dist').textContent = g.value;
     if (g.type === 'time')     document.getElementById('gv-time').textContent = g.value;
     if (g.type === 'calories') document.getElementById('gv-cals').textContent = g.value;
+  }
+
+  // Load weekly goal
+  const gw = await fsGet('weeklyGoal');
+  if (gw) {
+    weeklyGoalData = gw;
+    setWeeklyGoalType(gw.type, document.querySelector(`.wgt-btn[data-gt="${gw.type}"]`), true);
+    if (gw.type === 'distance') document.getElementById('wgv-dist').textContent = gw.value;
+    if (gw.type === 'calories') document.getElementById('wgv-cals').textContent = gw.value;
+    if (gw.type === 'runs')     document.getElementById('wgv-runs').textContent = gw.value;
+  }
+
+  // Load monthly goal
+  const gm = await fsGet('monthlyGoal');
+  if (gm) {
+    monthlyGoalData = gm;
+    setMonthlyGoalType(gm.type, document.querySelector(`.mgt-btn[data-gt="${gm.type}"]`), true);
+    if (gm.type === 'distance') document.getElementById('mgv-dist').textContent = gm.value;
+    if (gm.type === 'calories') document.getElementById('mgv-cals').textContent = gm.value;
+    if (gm.type === 'runs')     document.getElementById('mgv-runs').textContent = gm.value;
   }
 
   // Load runs
@@ -314,6 +338,11 @@ function renderGoalProgress() {
   if (gscDetail) gscDetail.textContent = `วิ่งแล้ว ${current.toFixed(goalData.type==='distance'?1:0)} ${unit} จาก ${goalData.value} ${unit}`;
   const gscWrap = document.getElementById('gscProgressWrap');
   if (gscWrap) gscWrap.style.display = 'block';
+
+  // weekly progress
+  renderWeeklyGoalProgress();
+  // monthly progress
+  renderMonthlyGoalProgress();
 }
 
 function renderLastRun() {
@@ -688,6 +717,127 @@ function updateHeaderGoal() {
 }
 
 /* ============================================================
+   WEEKLY / MONTHLY GOAL
+   ============================================================ */
+function setWeeklyGoalType(type, el, silent = false) {
+  currentWeeklyGoalType = type;
+  document.querySelectorAll('.wgt-btn').forEach(b => b && b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('wgi-distance').style.display = type === 'distance' ? 'block' : 'none';
+  document.getElementById('wgi-calories').style.display = type === 'calories' ? 'block' : 'none';
+  document.getElementById('wgi-runs').style.display     = type === 'runs'     ? 'block' : 'none';
+}
+
+function adjWeeklyGoal(delta) {
+  const ids = { distance:'wgv-dist', calories:'wgv-cals', runs:'wgv-runs' };
+  const el = document.getElementById(ids[currentWeeklyGoalType]);
+  el.textContent = Math.max(1, parseInt(el.textContent) + delta);
+}
+
+async function saveWeeklyGoal() {
+  let value;
+  if (currentWeeklyGoalType === 'distance') value = parseInt(document.getElementById('wgv-dist').textContent);
+  else if (currentWeeklyGoalType === 'calories') value = parseInt(document.getElementById('wgv-cals').textContent);
+  else value = parseInt(document.getElementById('wgv-runs').textContent);
+
+  weeklyGoalData = { type: currentWeeklyGoalType, value };
+  await fsSet('weeklyGoal', weeklyGoalData);
+  renderWeeklyGoalProgress();
+
+  const btn = document.querySelector('#weeklyGoalCard .btn-primary');
+  if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✅ บันทึกแล้ว!'; setTimeout(()=>{btn.innerHTML=orig;},1500); }
+}
+
+function renderWeeklyGoalProgress() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - now.getDay() + 1);
+  monday.setHours(0,0,0,0);
+  const weekRuns = allRuns.filter(r => new Date(r.date) >= monday);
+
+  let current = 0, unit = '', label = '';
+  if (weeklyGoalData.type === 'distance') {
+    current = weekRuns.reduce((a,r) => a + (r.distance||0), 0);
+    unit = 'กม.'; label = 'ระยะทาง';
+  } else if (weeklyGoalData.type === 'calories') {
+    current = weekRuns.reduce((a,r) => a + (r.calories||0), 0);
+    unit = 'kcal'; label = 'แคลอรี่';
+  } else {
+    current = weekRuns.length;
+    unit = 'ครั้ง'; label = 'จำนวนครั้ง';
+  }
+
+  const pct = weeklyGoalData.value ? Math.min(100, Math.round((current / weeklyGoalData.value) * 100)) : 0;
+  const el = document.getElementById('wgsc-value');
+  if (el) el.textContent = `${weeklyGoalData.value} ${unit}/สัปดาห์ · ${pct}%`;
+  const fill = document.getElementById('wgsc-fill');
+  if (fill) fill.style.width = pct + '%';
+  const detail = document.getElementById('wgsc-detail');
+  if (detail) detail.textContent = `${label} ${current.toFixed(weeklyGoalData.type==='distance'?1:0)} / ${weeklyGoalData.value} ${unit}`;
+  const wrap = document.getElementById('wgsc-wrap');
+  if (wrap) wrap.style.display = weeklyGoalData.value ? 'block' : 'none';
+}
+
+function setMonthlyGoalType(type, el, silent = false) {
+  currentMonthlyGoalType = type;
+  document.querySelectorAll('.mgt-btn').forEach(b => b && b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('mgi-distance').style.display = type === 'distance' ? 'block' : 'none';
+  document.getElementById('mgi-calories').style.display = type === 'calories' ? 'block' : 'none';
+  document.getElementById('mgi-runs').style.display     = type === 'runs'     ? 'block' : 'none';
+}
+
+function adjMonthlyGoal(delta) {
+  const ids = { distance:'mgv-dist', calories:'mgv-cals', runs:'mgv-runs' };
+  const el = document.getElementById(ids[currentMonthlyGoalType]);
+  el.textContent = Math.max(1, parseInt(el.textContent) + delta);
+}
+
+async function saveMonthlyGoal() {
+  let value;
+  if (currentMonthlyGoalType === 'distance') value = parseInt(document.getElementById('mgv-dist').textContent);
+  else if (currentMonthlyGoalType === 'calories') value = parseInt(document.getElementById('mgv-cals').textContent);
+  else value = parseInt(document.getElementById('mgv-runs').textContent);
+
+  monthlyGoalData = { type: currentMonthlyGoalType, value };
+  await fsSet('monthlyGoal', monthlyGoalData);
+  renderMonthlyGoalProgress();
+
+  const btn = document.querySelector('#monthlyGoalCard .btn-primary');
+  if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✅ บันทึกแล้ว!'; setTimeout(()=>{btn.innerHTML=orig;},1500); }
+}
+
+function renderMonthlyGoalProgress() {
+  const now = new Date();
+  const monthRuns = allRuns.filter(r => {
+    const d = new Date(r.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+
+  let current = 0, unit = '', label = '';
+  if (monthlyGoalData.type === 'distance') {
+    current = monthRuns.reduce((a,r) => a + (r.distance||0), 0);
+    unit = 'กม.'; label = 'ระยะทาง';
+  } else if (monthlyGoalData.type === 'calories') {
+    current = monthRuns.reduce((a,r) => a + (r.calories||0), 0);
+    unit = 'kcal'; label = 'แคลอรี่';
+  } else {
+    current = monthRuns.length;
+    unit = 'ครั้ง'; label = 'จำนวนครั้ง';
+  }
+
+  const pct = monthlyGoalData.value ? Math.min(100, Math.round((current / monthlyGoalData.value) * 100)) : 0;
+  const el = document.getElementById('mgsc-value');
+  if (el) el.textContent = `${monthlyGoalData.value} ${unit}/เดือน · ${pct}%`;
+  const fill = document.getElementById('mgsc-fill');
+  if (fill) fill.style.width = pct + '%';
+  const detail = document.getElementById('mgsc-detail');
+  if (detail) detail.textContent = `${label} ${current.toFixed(monthlyGoalData.type==='distance'?1:0)} / ${monthlyGoalData.value} ${unit}`;
+  const wrap = document.getElementById('mgsc-wrap');
+  if (wrap) wrap.style.display = monthlyGoalData.value ? 'block' : 'none';
+}
+
+/* ============================================================
    BODY
    ============================================================ */
 function adjBody(key, delta) {
@@ -818,6 +968,7 @@ ${recent3 || 'ยังไม่มีข้อมูล'}
 const ROUTINE_SCHEDULE = {
   weekday: [
     { time:'05:55', name:'ตื่นนอน', tag:'rest', water:false },
+    { time:'05:57', name:'💧 ดื่มน้ำหลังตื่นนอน', tag:'water', water:true, waterMl:250 },
     { time:'06:00', name:'วิ่งออกกำลังกาย', tag:'run', water:false },
     { time:'06:55', name:'💧 ดื่มน้ำหลังวิ่ง', tag:'water', water:true, waterMl:100 },
     { time:'07:00', name:'ทำกับข้าวทานเช้า', tag:'meal', water:false },
@@ -839,6 +990,7 @@ const ROUTINE_SCHEDULE = {
   ],
   weekend: [
     { time:'08:00', name:'ตื่นนอน', tag:'rest', water:false },
+    { time:'08:02', name:'💧 ดื่มน้ำหลังตื่นนอน', tag:'water', water:true, waterMl:250 },
     { time:'09:00', name:'ถูบ้าน / ล้างห้องน้ำ', tag:'rest', water:false },
     { time:'10:00', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },
     { time:'11:30', name:'💧 ดื่มน้ำ', tag:'water', water:true, waterMl:100 },

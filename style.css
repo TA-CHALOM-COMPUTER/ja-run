@@ -885,3 +885,18 @@ body {
 .gsc-prog-bar-bg { background: var(--border); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 6px; }
 .gsc-prog-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 6px; transition: width .6s ease; }
 .gsc-prog-detail { font-size: .75rem; color: var(--text2); }
+
+/* ===== WEEKLY / MONTHLY GOAL CARDS ===== */
+#weeklyGoalCard .goal-status-card {
+  background: linear-gradient(135deg, rgba(59,130,246,.1), rgba(59,130,246,.04));
+  border-color: rgba(59,130,246,.25);
+}
+#weeklyGoalCard .gsc-value { color: #3b82f6; }
+#weeklyGoalCard .gsc-prog-bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+
+#monthlyGoalCard .goal-status-card {
+  background: linear-gradient(135deg, rgba(34,197,94,.1), rgba(34,197,94,.04));
+  border-color: rgba(34,197,94,.25);
+}
+#monthlyGoalCard .gsc-value { color: var(--green); }
+#monthlyGoalCard .gsc-prog-bar-fill { background: linear-gradient(90deg, #22c55e, #4ade80); }

@@ -237,8 +237,7 @@
       </div>
 
       <div class="card">
-        <h3>ตั้งโกลประจำวัน</h3>
-        <div class="goal-type-row">
+        <h3>ตั้งโกลประจำวัน</h3>        <div class="goal-type-row">
           <button class="gt-btn active" data-gt="distance" onclick="setGoalType('distance',this)"><span>📏</span>ระยะทาง</button>
           <button class="gt-btn" data-gt="time" onclick="setGoalType('time',this)"><span>⏱</span>เวลา</button>
           <button class="gt-btn" data-gt="calories" onclick="setGoalType('calories',this)"><span>🔥</span>แคลอรี่</button>
@@ -258,6 +257,78 @@
           </div>
         </div>
         <button class="btn-primary" onclick="saveGoal()">✓ บันทึกโกล</button>
+      </div>
+
+      <!-- Weekly Goal Card -->
+      <div class="card" id="weeklyGoalCard">
+        <h3>🗓 ตั้งโกลรายสัปดาห์</h3>
+
+        <!-- Status -->
+        <div class="goal-status-card" style="margin-bottom:14px">
+          <div class="gsc-title">ความคืบหน้าสัปดาห์นี้</div>
+          <div class="gsc-value" id="wgsc-value">ยังไม่ได้ตั้งโกล</div>
+          <div class="gsc-progress-wrap" id="wgsc-wrap" style="display:none">
+            <div class="gsc-prog-bar-bg"><div class="gsc-prog-bar-fill" id="wgsc-fill" style="width:0%"></div></div>
+            <div class="gsc-prog-detail" id="wgsc-detail"></div>
+          </div>
+        </div>
+
+        <div class="goal-type-row">
+          <button class="gt-btn wgt-btn active" data-gt="distance" onclick="setWeeklyGoalType('distance',this)"><span>📏</span>ระยะทาง</button>
+          <button class="gt-btn wgt-btn" data-gt="calories" onclick="setWeeklyGoalType('calories',this)"><span>🔥</span>แคลอรี่</button>
+          <button class="gt-btn wgt-btn" data-gt="runs" onclick="setWeeklyGoalType('runs',this)"><span>🏃</span>จำนวนครั้ง</button>
+        </div>
+        <div class="goal-input-area">
+          <div id="wgi-distance">
+            <label>เป้าหมายระยะทาง (กม./สัปดาห์)</label>
+            <div class="stepper"><button onclick="adjWeeklyGoal(-5)">−</button><span id="wgv-dist">30</span><button onclick="adjWeeklyGoal(5)">+</button></div>
+          </div>
+          <div id="wgi-calories" style="display:none">
+            <label>เป้าหมายแคลอรี่ (kcal/สัปดาห์)</label>
+            <div class="stepper"><button onclick="adjWeeklyGoal(-100)">−</button><span id="wgv-cals">1500</span><button onclick="adjWeeklyGoal(100)">+</button></div>
+          </div>
+          <div id="wgi-runs" style="display:none">
+            <label>เป้าหมายจำนวนครั้ง (ครั้ง/สัปดาห์)</label>
+            <div class="stepper"><button onclick="adjWeeklyGoal(-1)">−</button><span id="wgv-runs">5</span><button onclick="adjWeeklyGoal(1)">+</button></div>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="saveWeeklyGoal()">✓ บันทึกโกลสัปดาห์</button>
+      </div>
+
+      <!-- Monthly Goal Card -->
+      <div class="card" id="monthlyGoalCard">
+        <h3>📆 ตั้งโกลรายเดือน</h3>
+
+        <!-- Status -->
+        <div class="goal-status-card" style="margin-bottom:14px">
+          <div class="gsc-title">ความคืบหน้าเดือนนี้</div>
+          <div class="gsc-value" id="mgsc-value">ยังไม่ได้ตั้งโกล</div>
+          <div class="gsc-progress-wrap" id="mgsc-wrap" style="display:none">
+            <div class="gsc-prog-bar-bg"><div class="gsc-prog-bar-fill" id="mgsc-fill" style="width:0%"></div></div>
+            <div class="gsc-prog-detail" id="mgsc-detail"></div>
+          </div>
+        </div>
+
+        <div class="goal-type-row">
+          <button class="gt-btn mgt-btn active" data-gt="distance" onclick="setMonthlyGoalType('distance',this)"><span>📏</span>ระยะทาง</button>
+          <button class="gt-btn mgt-btn" data-gt="calories" onclick="setMonthlyGoalType('calories',this)"><span>🔥</span>แคลอรี่</button>
+          <button class="gt-btn mgt-btn" data-gt="runs" onclick="setMonthlyGoalType('runs',this)"><span>🏃</span>จำนวนครั้ง</button>
+        </div>
+        <div class="goal-input-area">
+          <div id="mgi-distance">
+            <label>เป้าหมายระยะทาง (กม./เดือน)</label>
+            <div class="stepper"><button onclick="adjMonthlyGoal(-10)">−</button><span id="mgv-dist">100</span><button onclick="adjMonthlyGoal(10)">+</button></div>
+          </div>
+          <div id="mgi-calories" style="display:none">
+            <label>เป้าหมายแคลอรี่ (kcal/เดือน)</label>
+            <div class="stepper"><button onclick="adjMonthlyGoal(-500)">−</button><span id="mgv-cals">6000</span><button onclick="adjMonthlyGoal(500)">+</button></div>
+          </div>
+          <div id="mgi-runs" style="display:none">
+            <label>เป้าหมายจำนวนครั้ง (ครั้ง/เดือน)</label>
+            <div class="stepper"><button onclick="adjMonthlyGoal(-1)">−</button><span id="mgv-runs">20</span><button onclick="adjMonthlyGoal(1)">+</button></div>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="saveMonthlyGoal()">✓ บันทึกโกลเดือน</button>
       </div>
 
       <div class="card">
